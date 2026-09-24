@@ -1,0 +1,13 @@
+{
+  "name": "cake-galaxy-storefront",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cake Galaxy responsive customer storefront",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/serve.mjs",
+    "check": "node scripts/check.mjs"
+  }
+}
