@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { products as initialProducts, unitPrice } from "@cake-galaxy/catalog";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 const basketKey = "cakegalaxy.basket.v2";
+const checkoutKey = "cakegalaxy.checkout.v1";
 
 export function useStore() {
   const store = useContext(StoreContext);
@@ -18,6 +19,7 @@ export function useStore() {
 export function StoreProvider({ children }) {
   const [catalog, setCatalog] = useState(initialProducts);
   const [cart, setCart] = useState([]);
+  const cartRef = useRef([]);
   const [hydrated, setHydrated] = useState(false);
   const [session, setSession] = useState({ authenticated: false, phone: "", csrfToken: "" });
   const [pincode, setPincode] = useState("");
@@ -39,11 +41,37 @@ export function StoreProvider({ children }) {
         body: formData || (body === undefined ? undefined : JSON.stringify(body))
       });
     } catch {
-      throw new Error("Unable to connect to the store right now. Please try again.");
+      const error = new Error("The store service isn't connected right now.");
+      error.serviceUnavailable = true;
+      throw error;
     }
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || result.message || "This service is unavailable right now.");
+    const isJson = response.headers.get("content-type")?.includes("application/json");
+    const result = isJson ? await response.json().catch(() => ({})) : {};
+    if (!response.ok || !isJson) {
+      const error = new Error(result.error || result.message || "The store service isn't connected right now.");
+      error.status = response.status;
+      error.serviceUnavailable = !isJson || [404, 502, 503, 504].includes(response.status);
+      throw error;
+    }
     return result;
+  }
+
+  async function checkDelivery(pin) {
+    if (!/^[1-9][0-9]{5}$/.test(pin)) throw new Error("Enter a valid 6-digit pincode.");
+    try {
+      const available = await api("/delivery?pincode=" + encodeURIComponent(pin));
+      if (typeof available.available !== "boolean") throw Object.assign(new Error("Delivery could not be confirmed yet."), { serviceUnavailable: true });
+      if (available.available) {
+        setPincode(pin);
+        setQuote(available);
+      }
+      return available;
+    } catch (error) {
+      if (!error.serviceUnavailable) throw error;
+      setPincode(pin);
+      setQuote(null);
+      return { available: null, unverified: true };
+    }
   }
 
   async function refreshSession() {
@@ -55,10 +83,20 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(basketKey) || "[]");
-      if (Array.isArray(saved)) {
-        setCart(saved.filter((item) => initialProducts.some((p) => p.id === item.productId && p.weights.includes(Number(item.size))) && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 20).slice(0, 30));
+      if (Array.isArray(saved) && !cartRef.current.length) {
+        const basket = saved.filter((item) => initialProducts.some((p) => p.id === item.productId && p.weights.includes(Number(item.size))) && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 20).slice(0, 30);
+        cartRef.current = basket;
+        setCart(basket);
       }
     } catch { /* Device storage is optional. */ }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(checkoutKey) || "null");
+      if (saved?.address?.pincode && saved?.delivery) {
+        setAddress(saved.address);
+        setDelivery(saved.delivery);
+        setPincode(saved.address.pincode);
+      }
+    } catch { /* Checkout details can be entered again. */ }
     setHydrated(true);
     refreshSession().catch(() => {});
     api("/catalog", { skipCsrf: true }).then((data) => {
@@ -66,22 +104,35 @@ export function StoreProvider({ children }) {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (hydrated) try { localStorage.setItem(basketKey, JSON.stringify(cart)); } catch {}
-  }, [cart, hydrated]);
-
+  function saveCart(next) {
+    cartRef.current = next;
+    setCart(next);
+    try { localStorage.setItem(basketKey, JSON.stringify(next)); } catch {}
+  }
   function addItem(item) {
-    setCart((current) => [...current, { ...item, id: crypto.randomUUID(), quantity: item.quantity || 1 }]);
+    saveCart([...cartRef.current, { ...item, id: crypto.randomUUID(), quantity: item.quantity || 1 }]);
   }
   function changeQuantity(id, delta) {
-    setCart((current) => current.map((item) => item.id === id ? { ...item, quantity: Math.min(20, Math.max(1, item.quantity + delta)) } : item));
+    saveCart(cartRef.current.map((item) => item.id === id ? { ...item, quantity: Math.min(20, Math.max(1, item.quantity + delta)) } : item));
   }
-  function removeItem(id) { setCart((current) => current.filter((item) => item.id !== id)); }
-  function clearCart() { setCart([]); }
+  function removeItem(id) { saveCart(cartRef.current.filter((item) => item.id !== id)); }
+  function clearCart() {
+    saveCart([]);
+    try { sessionStorage.removeItem(checkoutKey); } catch {}
+    setAddress(null);
+    setDelivery({ date: "", slot: "" });
+    setQuote(null);
+  }
+  function saveCheckoutDetails(details) {
+    setAddress(details.address);
+    setDelivery(details.delivery);
+    setPincode(details.address.pincode);
+    try { sessionStorage.setItem(checkoutKey, JSON.stringify(details)); } catch {}
+  }
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + unitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
 
-  return <StoreContext.Provider value={{ api, catalog, cart, count, subtotal, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
@@ -99,7 +150,7 @@ const paths = {
 export function Icon({ name }) { return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>; }
 
 export function Header() {
-  const { count, session, pincode, setPincode, setQuote, api } = useStore();
+  const { count, session, pincode, quote, checkDelivery } = useStore();
   const path = usePathname();
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [pin, setPin] = useState("");
@@ -109,10 +160,8 @@ export function Header() {
     setFeedback("");
     if (!/^[1-9]\d{5}$/.test(pin)) { setFeedback("Enter a valid 6-digit pincode."); return; }
     try {
-      const available = await api("/delivery?pincode=" + pin);
-      setQuote(available);
-      if (!available.available) { setFeedback("Delivery isn't available to that pincode yet."); return; }
-      setPincode(pin);
+      const available = await checkDelivery(pin);
+      if (available.available === false) { setFeedback("Delivery isn't available to that pincode yet."); return; }
       setDeliveryOpen(false);
     } catch (error) { setFeedback(error.message); }
   }
@@ -122,7 +171,7 @@ export function Header() {
       <div className="header-main wrap">
         <Link className="brand" href="/" aria-label="Cake Galaxy home"><span className="brand-monogram">cg.</span><span className="brand-wordmark">cake galaxy<small>MADE FOR YOUR MOMENTS</small></span></Link>
         <form className="header-search" action="/shop" role="search"><Icon name="search"/><input name="q" type="search" aria-label="Search cakes" placeholder="Find your favourite cake"/><button type="submit" aria-label="Search"><Icon name="arrow"/></button></form>
-        <button className="delivery-button" type="button" onClick={() => { setPin(pincode); setDeliveryOpen(true); }}><span><small>DELIVER TO</small><strong>{pincode || "Enter pincode"}</strong></span></button>
+        <button className="delivery-button" type="button" onClick={() => { setPin(pincode); setDeliveryOpen(true); }}><span><small>{quote?.available ? "DELIVER TO" : "CHECK DELIVERY"}</small><strong>{pincode || "Enter pincode"}</strong></span></button>
         <div className="header-actions"><Link className="header-action" href={session.authenticated ? "/orders" : "/login"} aria-label="Account"><Icon name="user"/><span>Account</span></Link><Link className="header-action bag-link" href="/cart" aria-label="Shopping bag"><Icon name="bag"/><span>Bag</span>{count > 0 && <b className="cart-count">{count}</b>}</Link></div>
       </div>
       <nav className="category-nav" aria-label="Shop categories"><div className="wrap category-inner">

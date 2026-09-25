@@ -57,7 +57,7 @@ See `apps/api/.env.example` for every variable. `.env` files are ignored by Git.
 
 Deploy `apps/web` on a Next.js host with `NEXT_PUBLIC_API_URL` set to the API URL, for example `https://api.example.com/api`. Deploy `apps/api` on a Node.js host with MongoDB and provider secrets. Set `WEB_ORIGIN` to the exact public web origin. For cookie based phone sessions, serve the storefront and API from the same site, such as `www.example.com` and `api.example.com`, over HTTPS. Set `NODE_ENV=production` and `COOKIE_SECURE=true`. Configure the merchant domain, health checks at `/api/health`, provider webhooks at `/api/webhooks/razorpay` and database backups. Use the real provider test environment before live keys.
 
-The Next.js app can also produce a static preview with `CAKE_STATIC_EXPORT=1 npm run build -w @cake-galaxy/web`; files are generated in `apps/web/out`. A static preview does not host Express or MongoDB. Real checkout requires a separately reachable API, correct CORS and cookie settings, service areas and live merchant credentials.
+The Next.js app can also produce a static preview with `CAKE_STATIC_EXPORT=1 npm run build -w @cake-galaxy/web`; files are generated in `apps/web/out`. In the preview, shoppers can enter a pincode on a product, add it to their bag, fill their address and review checkout. If the API is offline, the pincode is saved as unverified and payment stays disabled. A static preview does not host Express or MongoDB. Real checkout requires a separately reachable API, correct CORS and cookie settings, service areas and live merchant credentials; the API rechecks the delivery area and total before creating a payment order.
 
 ## Image credits
 

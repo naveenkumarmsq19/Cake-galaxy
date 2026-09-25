@@ -39,7 +39,7 @@ export function Shop() {
 export function Product() {
   const params = useSearchParams();
   const router = useRouter();
-  const { catalog, session, api, addItem } = useStore();
+  const { catalog, session, api, addItem, pincode, checkDelivery } = useStore();
   const product = catalog.find((item) => item.id === params.get("id")) || catalog[0];
   const [quantity, setQuantity] = useState(1);
   const [size, setSize] = useState(product.weights[0]);
@@ -50,6 +50,7 @@ export function Product() {
   const [file, setFile] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deliveryPin, setDeliveryPin] = useState(pincode);
   const key = product.id;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
 
@@ -58,6 +59,8 @@ export function Product() {
     setFeedback("");
     setBusy(true);
     try {
+      const service = await checkDelivery(deliveryPin);
+      if (service.available === false) throw new Error("Delivery isn't available to this pincode. Try another one.");
       let uploadId;
       if (product.photo) {
         if (!session.authenticated) { router.push("/login?next=" + encodeURIComponent("/product?id=" + product.id)); return; }
@@ -77,7 +80,8 @@ export function Product() {
       <div className="field-group"><label htmlFor="cake-message">Message on cake (optional)</label><input id="cake-message" maxLength={30} placeholder="Happy Birthday, Anu!" value={message} onChange={(event) => setMessage(event.target.value)}/></div>
       {product.photo && <div className="field-group"><label htmlFor="photo-upload">Add your photograph (JPG or PNG, up to 10 MB)</label><input id="photo-upload" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }} required/></div>}
       <div className="field-group"><span className="field-label">Make it a little more special</span>{addons.map((addon) => <label key={addon.id} className="check-label"><input type="checkbox" checked={extras.includes(addon.id)} onChange={(event) => setExtras((items) => event.target.checked ? [...items, addon.id] : items.filter((id) => id !== addon.id))}/>{addon.name} <span className="subtle">+{money(addon.price)}</span></label>)}</div>
-      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" disabled={busy}>Add to bag <Icon name="bag"/></button></div><p className="form-message" role="status">{feedback}</p>
+      <div className="field-group"><label htmlFor="product-pincode">Delivery pincode</label><input id="product-pincode" name="productPincode" inputMode="numeric" autoComplete="postal-code" pattern="[1-9][0-9]{5}" maxLength={6} value={deliveryPin} onChange={(event) => { setDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6)); setFeedback(""); }} placeholder="Enter 6-digit pincode" required/><p className="subtle">Delivery availability and charges are confirmed before payment.</p></div>
+      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div><p className="form-message" role="status">{feedback}</p>
     </form></div></div></div>;
 }
 
