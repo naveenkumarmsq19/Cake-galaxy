@@ -1,13 +1,14 @@
 {
-  "name": "cake-galaxy-storefront",
-  "version": "1.0.0",
+  "name": "cake-galaxy",
   "private": true,
   "type": "module",
-  "description": "Cake Galaxy responsive customer storefront",
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=22" },
+  "workspaces": ["apps/web", "apps/api", "packages/catalog"],
   "scripts": {
-    "start": "node scripts/serve.mjs",
-    "dev": "node scripts/serve.mjs",
-    "check": "node scripts/check.mjs"
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w @cake-galaxy/web",
+    "check": "npm run check -w @cake-galaxy/api && npm run build -w @cake-galaxy/web",
+    "start:api": "npm run start -w @cake-galaxy/api",
+    "start:web": "npm run start -w @cake-galaxy/web"
   }
 }

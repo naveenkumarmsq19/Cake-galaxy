@@ -1,0 +1,19 @@
+{
+  "name": "@cake-galaxy/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "node --watch src/index.js", "start": "node src/index.js", "check": "node --test test/*.test.js" },
+  "dependencies": {
+    "@cake-galaxy/catalog": "1.0.0",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.5",
+    "dotenv": "17.2.3",
+    "express": "5.2.1",
+    "express-rate-limit": "8.2.1",
+    "mongoose": "9.10.2",
+    "multer": "2.0.2",
+    "pdfkit": "0.17.2",
+    "sharp": "0.34.4"
+  }
+}

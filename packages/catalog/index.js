@@ -1,11 +1,11 @@
 export const images = {
-  banner: "./assets/images/celebration-banner.webp",
-  chocolate: "./assets/images/chocolate.jpg",
-  celebration: "./assets/images/celebration.jpg",
-  floral: "./assets/images/berry.jpg",
-  rainbow: "./assets/images/pastel.jpg",
-  custom: "./assets/images/custom.jpg",
-  cupcakes: "./assets/images/cupcakes.jpg"
+  banner: "/images/celebration-banner.webp",
+  chocolate: "/images/chocolate.jpg",
+  celebration: "/images/celebration.jpg",
+  floral: "/images/berry.jpg",
+  rainbow: "/images/pastel.jpg",
+  custom: "/images/custom.jpg",
+  cupcakes: "/images/cupcakes.jpg"
 };
 
 export const products = [
@@ -34,12 +34,11 @@ export const addons = [
   { id: "topper", name: "Birthday topper", price: 5900 }
 ];
 
-export const getProduct = (id) => products.find((product) => product.id === id);
+export const getProduct = (id, list = products) => list.find((product) => product.id === id);
 export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
 export const sizeLabel = (product, size = product.weights[0]) => size + (product.unit === "pieces" ? " pieces" : " kg");
 
-export function unitPrice(item) {
-  const product = getProduct(item.productId);
+export function unitPrice(item, product = getProduct(item.productId)) {
   if (!product || !product.weights.includes(Number(item.size))) return 0;
   const base = Math.round(product.price * Number(item.size) / product.weights[0]);
   const extras = addons.filter((addon) => (item.addons || []).includes(addon.id)).reduce((sum, addon) => sum + addon.price, 0);
