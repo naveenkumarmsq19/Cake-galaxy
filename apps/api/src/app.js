@@ -168,7 +168,7 @@ export function createApp() {
     res.status(201).json({ reference });
   });
 
-  app.get("/api/checkout/config", (_req, res) => res.json({ paymentsEnabled: merchantReady(), keyId: merchantReady() ? process.env.RAZORPAY_KEY_ID : "" }));
+  app.get("/api/checkout/config", (_req, res) => res.json({ paymentsEnabled: merchantReady(), keyId: merchantReady() ? process.env.RAZORPAY_KEY_ID : "", taxRate: merchantReady() ? Number(process.env.GST_RATE_PERCENT) : null }));
 
   app.post("/api/checkout/orders", authenticated, async (req, res) => {
     if (!merchantReady()) throw new HttpError(503, "Online payments are unavailable. No payment has been taken.");
