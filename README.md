@@ -26,6 +26,16 @@ npm run dev
 
 Open `http://localhost:3000` (API on `http://localhost:4000`). The sample API config enables a development OTP only outside production; its code appears in the API terminal. Do not enable real checkout until products, prices, policies, business tax information, service areas and provider accounts are configured. The sample catalogue contains illustrative images, names and prices, not confirmed merchant inventory.
 
+On Windows PowerShell, create the same files from the repository root:
+
+```powershell
+Copy-Item .\apps\api\.env.example .\apps\api\.env
+Copy-Item .\apps\web\.env.example .\apps\web\.env.local
+npm run dev
+```
+
+`apps/api/.env` contains `MONGODB_URI=mongodb://127.0.0.1:27017/cake_galaxy` as a local example. A MongoDB server must actually be running at that address. If you use a hosted MongoDB database, replace this value with its connection string. The API loads `apps/api/.env` even if you start Node from the repository root. Never commit real connection strings or provider keys.
+
 ```sh
 npm run check
 ```

@@ -1,11 +1,14 @@
-import "dotenv/config";
+import { config } from "dotenv";
+import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
 import { products } from "@cake-galaxy/catalog";
 import { createApp } from "./app.js";
 import { Product, ServiceArea } from "./models.js";
 
+config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
+
 async function start() {
-  if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is required. See apps/api/.env.example.");
+  if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is missing. Copy apps/api/.env.example to apps/api/.env and set a reachable MongoDB connection string.");
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
 
   if (!await Product.exists({})) {
