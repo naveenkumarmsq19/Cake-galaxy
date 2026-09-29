@@ -30,7 +30,7 @@ const emailAddress = (value) => {
   return result;
 };
 const visibleUser = (user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.role, branchId: user.branchId ? String(user.branchId) : null, active: user.active });
-const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, cancellation: order.cancellation, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
+const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: order.cancellation, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
 const scoped = (req) => req.admin.role === "super_admin" ? {} : { branchId: req.admin.branchId };
 
 export async function hashPassword(password) {
@@ -195,13 +195,13 @@ export function createAdminRouter() {
     const allowed = { confirmed: "preparing", preparing: "out_for_delivery", out_for_delivery: "delivered" };
     const previous = Object.keys(allowed).find((key) => allowed[key] === next);
     if (!previous) throw new HttpError(400, "Invalid order transition.");
-    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req), status: previous, paymentStatus: "paid", "cancellation.status": { $ne: "requested" } }, { $set: { status: next } }, { new: true });
+    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req), status: previous, paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $ne: "requested" } }, { $set: { status: next } }, { new: true });
     if (!order) throw new HttpError(409, "Order not found or its status has changed.");
     res.json({ order: visibleOrder(order) });
   });
   router.post("/orders/:reference/cancellation-rejection", requireSuper, async (req, res) => {
     const reason = text(req.body?.reason, 300);
-    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), "cancellation.status": "requested", paymentStatus: "paid" },
+    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), "cancellation.status": "requested", paymentStatus: { $in: ["paid", "test_cod"] } },
       { $set: { "cancellation.status": "rejected", "cancellation.reviewedAt": new Date(), "cancellation.reviewedBy": req.admin._id, "cancellation.reviewReason": reason } }, { new: true });
     if (!order) throw new HttpError(409, "Cancellation request has already changed.");
     res.json({ order: visibleOrder(order) });
