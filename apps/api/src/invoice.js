@@ -17,7 +17,7 @@ export function issueInvoice(order, response) {
   pdf.moveDown(.4).fontSize(10).text(merchant).text("GSTIN " + gstin);
   pdf.moveDown().fontSize(16).text("Tax invoice");
   pdf.fontSize(10).text("Invoice reference: " + order.reference).text("Date: " + new Date(order.updatedAt).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" }));
-  pdf.moveDown().text("Bill to: " + (order.gst?.business || order.address.name));
+  pdf.moveDown().text("Bill to: " + (order.gst?.business || order.sender?.name || order.address.name));
   if (order.gst?.gstin) pdf.text("Customer GSTIN: " + order.gst.gstin);
   pdf.text(order.gst?.billingAddress || [order.address.line1, order.address.line2, order.address.city, order.address.pincode].filter(Boolean).join(", "));
   pdf.moveDown().text("Items").moveDown(.5);
