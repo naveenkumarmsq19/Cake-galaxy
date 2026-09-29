@@ -8,7 +8,7 @@ import { products as initialProducts, unitPrice } from "@cake-galaxy/catalog";
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 const basketKey = "cakegalaxy.basket.v2";
-const checkoutKey = "cakegalaxy.checkout.v1";
+const checkoutKey = "cakegalaxy.checkout.v2";
 
 export function useStore() {
   const store = useContext(StoreContext);
@@ -25,6 +25,7 @@ export function StoreProvider({ children }) {
   const [pincode, setPincode] = useState("");
   const [quote, setQuote] = useState(null);
   const [address, setAddress] = useState(null);
+  const [sender, setSender] = useState(null);
   const [delivery, setDelivery] = useState({ date: "", slot: "" });
   const [receipt, setReceipt] = useState(null);
 
@@ -91,8 +92,9 @@ export function StoreProvider({ children }) {
     } catch { /* Device storage is optional. */ }
     try {
       const saved = JSON.parse(sessionStorage.getItem(checkoutKey) || "null");
-      if (saved?.address?.pincode && saved?.delivery) {
+      if (saved?.address?.pincode && saved?.sender?.phone && saved?.delivery) {
         setAddress(saved.address);
+        setSender(saved.sender);
         setDelivery(saved.delivery);
         setPincode(saved.address.pincode);
       }
@@ -120,11 +122,13 @@ export function StoreProvider({ children }) {
     saveCart([]);
     try { sessionStorage.removeItem(checkoutKey); } catch {}
     setAddress(null);
+    setSender(null);
     setDelivery({ date: "", slot: "" });
     setQuote(null);
   }
   function saveCheckoutDetails(details) {
     setAddress(details.address);
+    setSender(details.sender);
     setDelivery(details.delivery);
     setPincode(details.address.pincode);
     try { sessionStorage.setItem(checkoutKey, JSON.stringify(details)); } catch {}
@@ -132,7 +136,7 @@ export function StoreProvider({ children }) {
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + unitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
@@ -172,7 +176,7 @@ export function Header() {
         <Link className="brand" href="/" aria-label="Cake Galaxy home"><span className="brand-monogram">cg.</span><span className="brand-wordmark">cake galaxy<small>MADE FOR YOUR MOMENTS</small></span></Link>
         <form className="header-search" action="/shop" role="search"><Icon name="search"/><input name="q" type="search" aria-label="Search cakes" placeholder="Find your favourite cake"/><button type="submit" aria-label="Search"><Icon name="arrow"/></button></form>
         <button className="delivery-button" type="button" onClick={() => { setPin(pincode); setDeliveryOpen(true); }}><span><small>{quote?.available ? "DELIVER TO" : "CHECK DELIVERY"}</small><strong>{pincode || "Enter pincode"}</strong></span></button>
-        <div className="header-actions"><Link className="header-action" href={session.authenticated ? "/orders" : "/login"} aria-label="Account"><Icon name="user"/><span>Account</span></Link><Link className="header-action bag-link" href="/cart" aria-label="Shopping bag"><Icon name="bag"/><span>Bag</span>{count > 0 && <b className="cart-count">{count}</b>}</Link></div>
+        <div className="header-actions"><Link className="header-action" href="/orders" aria-label="Account"><Icon name="user"/><span>Account</span></Link><Link className="header-action bag-link" href="/cart" aria-label="Shopping bag"><Icon name="bag"/><span>Bag</span>{count > 0 && <b className="cart-count">{count}</b>}</Link></div>
       </div>
       <nav className="category-nav" aria-label="Shop categories"><div className="wrap category-inner">
         <Link href="/shop">All cakes</Link><Link href="/shop?category=Birthday">Birthday</Link><Link href="/shop?category=Anniversary">Anniversary</Link><Link href="/shop?category=Chocolate">Chocolate cakes</Link><Link href="/shop?category=Photo">Photo cakes</Link><Link href="/shop?category=Kids">Kids' cakes</Link><Link href="/custom">Custom cakes <span>Made for you</span></Link>
