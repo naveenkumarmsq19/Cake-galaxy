@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
-import { AdminSession, AdminUser, Branch, CustomRequest, Order, ServiceArea, Session } from "../src/models.js";
+import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Session } from "../src/models.js";
 import { hashPassword } from "../src/admin.js";
 import { bootstrapSuperAdmin } from "../src/bootstrap.js";
 
@@ -123,5 +123,42 @@ test("custom cake request saves the branch selected from the delivery pincode", 
   } finally {
     Session.findOne = originals.session; ServiceArea.findOne = originals.area;
     Branch.findOne = originals.branch; CustomRequest.create = originals.create;
+  }
+});
+
+test("checkout verifies the sender while preserving a different recipient phone", async () => {
+  const keys = ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "MERCHANT_LEGAL_NAME", "MERCHANT_GSTIN", "GST_RATE_PERCENT", "CATALOG_APPROVED", "POLICIES_APPROVED"];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, { RAZORPAY_KEY_ID: "test_key", RAZORPAY_KEY_SECRET: "test_secret", MERCHANT_LEGAL_NAME: "Cake Galaxy", MERCHANT_GSTIN: "29ABCDE1234F1Z5", GST_RATE_PERCENT: "0", CATALOG_APPROVED: "true", POLICIES_APPROVED: "true" });
+  const originals = { session: Session.findOne, order: Order.findOne, create: Order.create, area: ServiceArea.findOne, branch: Branch.findOne, products: Product.find, fetch: globalThis.fetch };
+  const branchId = new mongoose.Types.ObjectId();
+  const csrf = "d".repeat(48);
+  let saved;
+  Session.findOne = () => ({ lean: async () => ({ phone: "9876543210", csrfToken: csrf }) });
+  Order.findOne = async () => null;
+  ServiceArea.findOne = () => ({ lean: async () => ({ pincode: "560073", deliveryFee: 4900, branchId }) });
+  Branch.findOne = () => ({ lean: async () => ({ _id: branchId, active: true }) });
+  Product.find = () => ({ lean: async () => [{ id: "chocolate-truffle", name: "Chocolate Truffle", price: 74900, weights: [0.5], flavour: "Chocolate", unit: "kg", active: true, eggless: false, photo: false }] });
+  Order.create = async (value) => { saved = value; return { ...value, save: async () => {} }; };
+  globalThis.fetch = async (url, options) => String(url).startsWith("https://api.razorpay.com/")
+    ? new Response(JSON.stringify({ id: "order_test", amount: 79800, currency: "INR" }), { status: 200, headers: { "Content-Type": "application/json" } })
+    : originals.fetch(url, options);
+  try {
+    await withServer(async (base) => {
+      const body = { idempotencyKey: randomUUID(), items: [{ productId: "chocolate-truffle", size: 0.5, quantity: 1, flavour: "Chocolate", eggless: false }], sender: { name: "Naveen", phone: "9876543210" }, address: { name: "Friend", phone: "9123456789", line1: "1 Main Road", city: "Bengaluru", pincode: "560073", whatsapp: true }, delivery: { date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), slot: "10 AM – 1 PM" } };
+      const headers = { Cookie: "cg_session=" + "c".repeat(64), "X-CSRF-Token": csrf, "Content-Type": "application/json" };
+      const response = await originals.fetch(base + "/api/checkout/orders", { method: "POST", headers, body: JSON.stringify(body) });
+      assert.equal(response.status, 201);
+      assert.equal(saved.customerPhone, "9876543210");
+      assert.deepEqual(saved.sender, { name: "Naveen", phone: "9876543210" });
+      assert.equal(saved.address.name, "Friend");
+      assert.equal(saved.address.phone, "9123456789");
+      const wrongSender = await originals.fetch(base + "/api/checkout/orders", { method: "POST", headers, body: JSON.stringify({ ...body, sender: { name: "Naveen", phone: "9123456789" } }) });
+      assert.equal(wrongSender.status, 400);
+    });
+  } finally {
+    Session.findOne = originals.session; Order.findOne = originals.order; Order.create = originals.create;
+    ServiceArea.findOne = originals.area; Branch.findOne = originals.branch; Product.find = originals.products; globalThis.fetch = originals.fetch;
+    for (const key of keys) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
   }
 });
