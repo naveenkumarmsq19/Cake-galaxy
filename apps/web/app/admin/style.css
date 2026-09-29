@@ -103,6 +103,7 @@
   .admin-fields { grid-template-columns:minmax(0,1fr); }
   .admin-fields .admin-wide { grid-column:auto; }
   .admin-card { padding:17px; overflow-wrap:anywhere; }
+  .admin-card-head { flex-wrap:wrap; }
   .admin-order-grid { grid-template-columns:minmax(0,1fr); }
   .admin-row { gap:10px; }
   .admin-row > * { max-width:100%; min-width:0; overflow-wrap:anywhere; }
