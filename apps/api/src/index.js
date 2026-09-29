@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import { products } from "@cake-galaxy/catalog";
 import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
-import { hashPassword } from "./admin.js";
+import { bootstrapSuperAdmin } from "./bootstrap.js";
 
 config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -38,14 +38,11 @@ async function start() {
     const saved = await Branch.findOne({ code: branch.code });
     await ServiceArea.updateOne({ pincode: branch.basePincode }, { $setOnInsert: { pincode: branch.basePincode, branchId: saved._id, deliveryFee, active: true } }, { upsert: true });
   }
-  if (!await AdminUser.exists({ role: "super_admin" })) {
-    const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-    const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
-    if (email && password) {
-      await AdminUser.create({ email, name: "Super Admin", passwordHash: await hashPassword(password), role: "super_admin", active: true });
-      process.stdout.write("Initial Super Admin created. Remove bootstrap secrets from the environment and restart.\n");
-    } else process.stdout.write("Admin setup pending: set ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD once, then restart.\n");
-  }
+  const adminSetup = await bootstrapSuperAdmin(AdminUser, process.env.ADMIN_BOOTSTRAP_EMAIL, process.env.ADMIN_BOOTSTRAP_PASSWORD);
+  if (adminSetup === "created") process.stdout.write("Initial Super Admin created. Remove bootstrap secrets from the environment and restart.\n");
+  if (adminSetup === "missing") process.stdout.write("Admin setup pending: set ADMIN_BOOTSTRAP_EMAIL and a 12–128 character ADMIN_BOOTSTRAP_PASSWORD once.\n");
+  if (adminSetup === "invalid") process.stderr.write("Admin setup skipped: provide a valid email and a 12–128 character password. Customer API will continue running.\n");
+  if (adminSetup === "conflict") process.stderr.write("Admin setup skipped: that email belongs to another account. Customer API will continue running.\n");
 
   const port = Number(process.env.PORT || 4000);
   const server = createApp().listen(port, () => process.stdout.write("Cake Galaxy API listening on port " + port + "\n"));

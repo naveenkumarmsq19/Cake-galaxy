@@ -5,6 +5,18 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { AdminSession, AdminUser, Branch, CustomRequest, Order, ServiceArea, Session } from "../src/models.js";
 import { hashPassword } from "../src/admin.js";
+import { bootstrapSuperAdmin } from "../src/bootstrap.js";
+
+test("invalid bootstrap credentials never prevent startup or create an admin", async () => {
+  let created = null;
+  const store = { exists: async () => false, create: async (user) => { created = user; } };
+  assert.equal(await bootstrapSuperAdmin(store, "owner@example.com", "short"), "invalid");
+  assert.equal(created, null);
+  assert.equal(await bootstrapSuperAdmin(store, "owner@example.com", "secure-password-1234"), "created");
+  assert.equal(created.email, "owner@example.com");
+  assert.match(created.passwordHash, /^[0-9a-f]{32}:[0-9a-f]{128}$/);
+  assert.equal(await bootstrapSuperAdmin({ exists: async () => true, create: async () => { throw new Error("Must not reset admin"); } }, "owner@example.com", "short"), "existing");
+});
 
 async function withServer(run) {
   const server = createApp().listen(0);

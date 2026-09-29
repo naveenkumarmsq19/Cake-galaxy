@@ -26,7 +26,7 @@ Checkout is disabled unless Razorpay keys, valid merchant GSTIN/legal name, a ta
 
 ## Operations API
 
-The separate `/api/admin` namespace uses a server stored, seven day HttpOnly session cookie and requires `X-CSRF-Token` on every authenticated write. The first Super Admin is created by one-time `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` environment variables. Remove both variables after the first successful start. Login is rate limited. Every branch-scoped query uses the signed-in manager's branch ID on the server, not a submitted client filter.
+The separate `/api/admin` namespace uses a server stored, seven day HttpOnly session cookie and requires `X-CSRF-Token` on every authenticated write. The first Super Admin is created by one-time `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` environment variables (12–128 characters). Remove both variables after the log confirms creation. Invalid bootstrap credentials skip account creation without bringing down the customer API. Login is rate limited. Every branch-scoped query uses the signed-in manager's branch ID on the server, not a submitted client filter.
 
 | Method and route | Access and behavior |
 | --- | --- |
