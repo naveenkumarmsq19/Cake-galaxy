@@ -11,7 +11,7 @@ Cake Galaxy customer storefront. The web app uses Next.js App Router and React; 
 | `packages/catalog` | Seed products and shared display pricing |
 | `docs/API.md` | API routes, setup and deployment considerations |
 
-Customer routes: home, catalogue/search, product options and photo cake upload, custom cake samples and design request, bag, address, phone login, checkout, confirmation, orders, help and policies. The chatbot answers common questions using local rules. Offers/coupons, public branch details and live rider tracking are intentionally not part of this scope. The admin panel is a later delivery.
+Customer routes: home, catalogue/search, product options and photo cake upload, custom cake samples and design request, bag, address, phone login, checkout, confirmation, orders, help and policies. The chatbot answers common questions using local rules. Offers/coupons, public branch details and live rider tracking are not part of this scope. The private operations panel is at `/admin`.
 
 ## Local development
 
@@ -44,12 +44,13 @@ This runs API validation/signature/HTTP tests and the production Next.js build. 
 
 ## Business setup
 
-1. Set `SERVICEABLE_PINCODES` and `DELIVERY_FEE_PAISE` in the API environment before the first database seed. The database stores service areas privately; the website returns only availability and price.
-2. Replace the starter `Product` documents in MongoDB with approved cake photos, names, sizes and prices. Replace the starter copy in `apps/web/src/screens/Info.jsx` with approved terms, privacy and cancellation/refund text.
-3. Set the merchant GSTIN, legal name and correct tax rate; GST invoices are generated for paid orders when those fields are configured.
-4. Configure MSG91 SMS OTP credentials and an approved WhatsApp template if order updates are desired. Obtain customer consent through checkout.
-5. Configure Razorpay keys and a webhook secret. Test captured, pending, failed and duplicate callbacks in the provider test environment.
-6. Set `CATALOG_APPROVED=true` and `POLICIES_APPROVED=true` only after the approved catalogue and policies are in place. Checkout remains disabled without these approvals, valid GST settings and Razorpay keys.
+1. Set `ADMIN_BOOTSTRAP_EMAIL` and a unique 12+ character `ADMIN_BOOTSTRAP_PASSWORD` in the API environment, start the API once, then remove both variables and restart. Sign in at `/admin` on the web domain. Create Branch Managers there; they see only their own branch orders and custom requests. Super Admin can view and manage all branches, managers, products and service mappings.
+2. Branches BR01 (Peenya, 560058) and BR02 (Nagasandra, 560073) are created inactive with their own base pincode mappings. Branch 3 was not added because the supplied address duplicated Branch 2. Confirm its actual address before creating it in the panel. Activate branches and map verified 6-digit service pincodes under Coverage. Each pincode maps to exactly one branch; orders and custom requests save the assigned branch at creation. Old service area rows without a branch mapping are unavailable at checkout. Do not infer all covered pincodes from a 5 km radius: a pincode spans an area and exact distance needs a verified delivery address/map location. `radiusKm: 5` records the operating rule, while actual fulfillment currently uses the approved pincode list.
+3. Replace the starter `Product` documents with approved cake photos, names, sizes and prices. Super Admin can edit individual products in the panel. The earlier PDF workbook uses exact pastry/small/medium prices and missing size weights; the current product model still uses one base price and proportional size pricing. A dedicated variant pricing importer is needed before that workbook can be imported without changing amounts. Replace the starter copy in `apps/web/src/screens/Info.jsx` with approved terms, privacy and cancellation/refund text.
+4. Set the merchant GSTIN, legal name and correct tax rate; GST invoices are generated for paid orders when those fields are configured.
+5. Configure MSG91 SMS OTP credentials and an approved WhatsApp template if order updates are desired. Obtain customer consent through checkout.
+6. Configure Razorpay keys and a webhook secret. Test captured, pending, failed and duplicate callbacks in the provider test environment.
+7. Set `CATALOG_APPROVED=true` and `POLICIES_APPROVED=true` only after the approved catalogue and policies are in place. Checkout remains disabled without these approvals, valid GST settings and Razorpay keys.
 
 See `apps/api/.env.example` for every variable. `.env` files are ignored by Git.
 

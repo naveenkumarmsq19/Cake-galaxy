@@ -1,5 +1,6 @@
 import "./globals.css";
-import { StoreProvider, Header, Footer, Support } from "../src/components/Storefront";
+import { StoreProvider } from "../src/components/Storefront";
+import SiteShell from "../src/components/SiteShell";
 
 export const metadata = {
   title: "Cake Galaxy | Made for your moments",
@@ -7,5 +8,5 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  return <html lang="en"><body><StoreProvider><a className="skip-link" href="#main">Skip to content</a><Header/><main id="main">{children}</main><Footer/><Support/></StoreProvider></body></html>;
+  return <html lang="en"><body><StoreProvider><SiteShell>{children}</SiteShell></StoreProvider></body></html>;
 }

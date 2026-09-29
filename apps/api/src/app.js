@@ -9,7 +9,8 @@ import mongoose from "mongoose";
 import multer from "multer";
 import sharp from "sharp";
 import { addons } from "@cake-galaxy/catalog";
-import { Customer, Session, LoginChallenge, Product, ServiceArea, Upload, CustomRequest, Order } from "./models.js";
+import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
+import { createAdminRouter } from "./admin.js";
 import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { invoiceConfigured, issueInvoice } from "./invoice.js";
@@ -20,6 +21,13 @@ const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => razorpayConfigured() && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
 const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
+
+async function deliveryAssignment(pincode) {
+  const area = await ServiceArea.findOne({ pincode, active: true }).lean();
+  if (!area?.branchId || !Number.isSafeInteger(area.deliveryFee) || area.deliveryFee < 0) return null;
+  const branch = await Branch.findOne({ _id: area.branchId, active: true }).lean();
+  return branch ? { area, branch } : null;
+}
 
 async function findSession(req) {
   if (!req.cookies?.[cookieName]) return null;
@@ -83,6 +91,7 @@ export function createApp() {
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && req.get("origin") && req.get("origin") !== origin) return next(new HttpError(403, "Request origin isn't allowed."));
     next();
   });
+  app.use("/api/admin", createAdminRouter());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api/catalog", async (_req, res) => {
@@ -92,8 +101,8 @@ export function createApp() {
   app.get("/api/delivery", async (req, res) => {
     const pincode = String(req.query.pincode || "");
     if (!/^[1-9][0-9]{5}$/.test(pincode)) throw new HttpError(400, "Enter a valid 6-digit pincode.");
-    const area = await ServiceArea.findOne({ pincode, active: true }).lean();
-    res.json(area ? { available: true, deliveryFee: area.deliveryFee, slots } : { available: false });
+    const assignment = await deliveryAssignment(pincode);
+    res.json(assignment ? { available: true, deliveryFee: assignment.area.deliveryFee, slots } : { available: false });
   });
   app.get("/api/session", async (req, res) => {
     const session = await findSession(req);
@@ -156,15 +165,15 @@ export function createApp() {
     const body = req.body || {};
     const pincode = text(body.customPincode, 6);
     if (!/^[1-9][0-9]{5}$/.test(pincode)) throw new HttpError(400, "Enter a valid pincode.");
-    const service = await ServiceArea.findOne({ pincode, active: true });
-    if (!service) throw new HttpError(400, "We can't deliver to this pincode yet.");
+    const assignment = await deliveryAssignment(pincode);
+    if (!assignment) throw new HttpError(400, "We can't deliver to this pincode yet.");
     if (phoneNumber(body.customPhone) !== req.customer) throw new HttpError(400, "Verify the mobile number used for this request.");
     if (body.uploadId && !await Upload.findOne({ id: body.uploadId, ownerPhone: req.customer })) throw new HttpError(400, "The reference image was not found.");
     if (!body.uploadId && !body.sample) throw new HttpError(400, "Upload a design or choose a sample style.");
     const reference = "CGC" + randomBytes(5).toString("hex").toUpperCase();
     const budget = body.budget ? Number(body.budget) : null;
     if (budget !== null && (!Number.isSafeInteger(budget) || budget < 0 || budget > 1_000_000)) throw new HttpError(400, "Check the budget entered.");
-    await CustomRequest.create({ reference, ownerPhone: req.customer, uploadId: body.uploadId || null, sample: text(body.sample || "", 80, false), occasion: text(body.occasion, 60), weight: text(body.weight, 40), flavour: text(body.flavour, 60), budget, notes: text(body.notes || "", 2000, false), requiredDate: deliveryDate(body.requiredDate), customPincode: pincode, customPhone: req.customer });
+    await CustomRequest.create({ reference, ownerPhone: req.customer, uploadId: body.uploadId || null, sample: text(body.sample || "", 80, false), occasion: text(body.occasion, 60), weight: text(body.weight, 40), flavour: text(body.flavour, 60), budget, notes: text(body.notes || "", 2000, false), requiredDate: deliveryDate(body.requiredDate), customPincode: pincode, customPhone: req.customer, branchId: assignment.branch._id });
     res.status(201).json({ reference });
   });
 
@@ -185,8 +194,9 @@ export function createApp() {
     if (phoneNumber(address.phone) !== req.customer) throw new HttpError(400, "Verify the mobile number on your delivery address.");
     const pincode = text(address.pincode, 6);
     if (!/^[1-9][0-9]{5}$/.test(pincode)) throw new HttpError(400, "Enter a valid delivery pincode.");
-    const area = await ServiceArea.findOne({ pincode, active: true }).lean();
-    if (!area || !Number.isSafeInteger(area.deliveryFee) || area.deliveryFee < 0) throw new HttpError(400, "Delivery isn't available at that pincode.");
+    const assignment = await deliveryAssignment(pincode);
+    if (!assignment) throw new HttpError(400, "Delivery isn't available at that pincode.");
+    const { area, branch } = assignment;
     const delivery = { date: deliveryDate(body.delivery?.date), slot: text(body.delivery?.slot, 40) };
     if (!slots.includes(delivery.slot)) throw new HttpError(400, "Choose an available delivery time.");
     const productIds = body.items.map((item) => text(item.productId, 80));
@@ -212,7 +222,8 @@ export function createApp() {
       if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst.gstin)) throw new HttpError(400, "Enter a valid GSTIN.");
     }
     const reference = "CG" + randomBytes(8).toString("hex").toUpperCase();
-    const order = await Order.create({ reference, customerPhone: req.customer, idempotencyKey, items,
+    const order = await Order.create({ reference, customerPhone: req.customer, idempotencyKey, items, branchId: branch._id,
+      assignmentHistory: [{ from: null, to: branch._id, reason: "pincode", at: new Date() }],
       address: { name: text(address.name, 80), phone: req.customer, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60) },
       delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: address.whatsapp === true });
     const providerOrder = await razorpay("POST", "/orders", { amount, currency: "INR", receipt: reference, notes: { reference } });
@@ -255,9 +266,9 @@ export function createApp() {
   });
 
   app.use((_req, _res, next) => next(new HttpError(404, "Page not found.")));
-  app.use((error, _req, res, _next) => {
+  app.use((error, req, res, _next) => {
     const status = error.status || (error.code === 11000 ? 409 : error instanceof multer.MulterError ? 400 : 500);
-    const message = status === 500 ? "Something went wrong. Please try again." : error.code === 11000 ? "That request has already been submitted. Check My orders." : error.message;
+    const message = status === 500 ? "Something went wrong. Please try again." : error.code === 11000 ? (req.path.startsWith("/api/admin") ? "That record already exists." : "That request has already been submitted. Check My orders.") : error.message;
     if (status === 500) console.error(error);
     if (!res.headersSent) res.status(status).json({ error: message });
   });
