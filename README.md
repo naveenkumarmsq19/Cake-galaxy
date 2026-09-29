@@ -65,3 +65,15 @@ The Next.js app can also produce a static preview with `CAKE_STATIC_EXPORT=1 npm
 ## Image credits
 
 The bundled photographs are design references. Replace them with the merchant's approved product photographs before launch. Sources: [chocolate](https://images.unsplash.com/photo-1578985545062-69928b1d9587), [celebration](https://images.unsplash.com/photo-1558301211-0d8c8ddee6ec), [floral](https://images.unsplash.com/photo-1562777717-dc6984f65a63), [rainbow](https://images.unsplash.com/photo-1464349095431-e9a21285b5f3), [custom](https://images.unsplash.com/photo-1535141192574-5d4897c12636), [cupcakes](https://images.unsplash.com/photo-1587668178277-295251f900ce). The sage celebration banner is a bundled original visual.
+
+### Temporary customer checkout test
+
+For an end-to-end customer and branch workflow test before payment activation, set these **Render API environment variables** and redeploy:
+
+- `TEST_MODE_ENABLED=true`
+- `TEST_PHONE=` the one 10-digit mobile number used as the sender
+- `TEST_OTP_CODE=` a private six-digit code of your choosing
+
+Use that number in Delivery details. The code is entered on the website; no SMS is sent to the test number. The checkout then offers **Cash on delivery · Test only**, including when Razorpay is not configured. It creates a `CGT...` order mapped to the service area branch, visible to that branch's manager and the Super Admin. Staff can progress its status. The order is marked as a test, does not collect money, call Razorpay, send WhatsApp, create a GST invoice, or count as paid revenue. Other phones have no test COD option and retain the normal MSG91 and Razorpay flow. A serviceable pincode and active branch mapping are still required. The website must use `NEXT_PUBLIC_API_URL=/api` for the first-party session cookie.
+
+After testing, change `TEST_MODE_ENABLED=false`, redeploy, and remove `TEST_PHONE` and `TEST_OTP_CODE` from Render. Do not commit the code or phone to the repository. Existing test orders remain marked as tests for audit purposes.
