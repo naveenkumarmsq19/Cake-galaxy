@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Session } from "../src/models.js";
 import { hashPassword } from "../src/admin.js";
-import { bootstrapSuperAdmin } from "../src/bootstrap.js";
+import { bootstrapSuperAdmin, resetSuperAdminPassword } from "../src/bootstrap.js";
 
 test("invalid bootstrap credentials never prevent startup or create an admin", async () => {
   let created = null;
@@ -16,6 +16,22 @@ test("invalid bootstrap credentials never prevent startup or create an admin", a
   assert.equal(created.email, "owner@example.com");
   assert.match(created.passwordHash, /^[0-9a-f]{32}:[0-9a-f]{128}$/);
   assert.equal(await bootstrapSuperAdmin({ exists: async () => true, create: async () => { throw new Error("Must not reset admin"); } }, "owner@example.com", "short"), "existing");
+});
+
+test("reset updates only an existing Super Admin and revokes their sessions", async () => {
+  let update = null;
+  let revoked = null;
+  const store = {
+    findOne: async (filter) => filter.email === "owner@example.com" && filter.role === "super_admin" ? { _id: "admin-id" } : null,
+    updateOne: async (filter, change) => { update = { filter, change }; return { matchedCount: 1 }; }
+  };
+  const sessions = { deleteMany: async (filter) => { revoked = filter; } };
+  await assert.rejects(resetSuperAdminPassword(store, sessions, "other@example.com", "new-password-1234"), /not found/);
+  assert.equal(update, null);
+  await resetSuperAdminPassword(store, sessions, "owner@example.com", "new-password-1234");
+  assert.deepEqual(update.filter, { _id: "admin-id", role: "super_admin" });
+  assert.match(update.change.$set.passwordHash, /^[0-9a-f]{32}:[0-9a-f]{128}$/);
+  assert.deepEqual(revoked, { userId: "admin-id" });
 });
 
 test("approved Pages and custom domains both receive credentialed CORS headers", async () => {
