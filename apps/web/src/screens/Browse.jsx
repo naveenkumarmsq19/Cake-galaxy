@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { addons, categories, images, money, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
+import PhoneVerification from "../components/PhoneVerification";
 
 export function Home() {
   const { catalog } = useStore();
@@ -51,6 +52,7 @@ export function Product() {
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [deliveryPin, setDeliveryPin] = useState(pincode);
+  const [phone, setPhone] = useState("");
   const key = product.id;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
 
@@ -63,7 +65,7 @@ export function Product() {
       if (service.available === false) throw new Error("Delivery isn't available to this pincode. Try another one.");
       let uploadId;
       if (product.photo) {
-        if (!session.authenticated) { router.push("/login?next=" + encodeURIComponent("/product?id=" + product.id)); return; }
+        if (!session.authenticated) throw new Error("Verify your mobile number below before adding a photo cake.");
         if (!file) throw new Error("Choose your photograph before adding this cake.");
         const formData = new FormData(); formData.append("reference", file);
         const uploaded = await api("/uploads", { method: "POST", formData });
@@ -79,6 +81,7 @@ export function Product() {
       <div className="field-group"><label htmlFor="cake-flavour">Flavour</label><select id="cake-flavour" value={flavour} onChange={(event) => setFlavour(event.target.value)}>{[...new Set([product.flavour, ...(product.photo ? ["Chocolate", "Butterscotch"] : [])])].map((name) => <option key={name}>{name}</option>)}</select></div>
       <div className="field-group"><label htmlFor="cake-message">Message on cake (optional)</label><input id="cake-message" maxLength={30} placeholder="Happy Birthday, Anu!" value={message} onChange={(event) => setMessage(event.target.value)}/></div>
       {product.photo && <div className="field-group"><label htmlFor="photo-upload">Add your photograph (JPG or PNG, up to 10 MB)</label><input id="photo-upload" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }} required/></div>}
+      {product.photo && !session.authenticated && <div className="field-group"><PhoneVerification phone={phone} onPhoneChange={setPhone}/></div>}
       <div className="field-group"><span className="field-label">Make it a little more special</span>{addons.map((addon) => <label key={addon.id} className="check-label"><input type="checkbox" checked={extras.includes(addon.id)} onChange={(event) => setExtras((items) => event.target.checked ? [...items, addon.id] : items.filter((id) => id !== addon.id))}/>{addon.name} <span className="subtle">+{money(addon.price)}</span></label>)}</div>
       <div className="field-group"><label htmlFor="product-pincode">Delivery pincode</label><input id="product-pincode" name="productPincode" inputMode="numeric" autoComplete="postal-code" pattern="[1-9][0-9]{5}" maxLength={6} value={deliveryPin} onChange={(event) => { setDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6)); setFeedback(""); }} placeholder="Enter 6-digit pincode" required/><p className="subtle">{/^[1-9][0-9]{5}$/.test(deliveryPin) ? "Delivery availability and charges are confirmed before payment." : "Enter a 6-digit pincode to continue."}</p></div>
       <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div><p className="form-message" role="status">{feedback}</p>
@@ -87,25 +90,26 @@ export function Product() {
 
 export function Custom() {
   const { session, api, pincode } = useStore();
-  const router = useRouter();
   const [sample, setSample] = useState("");
   const [file, setFile] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [customPhone, setCustomPhone] = useState("");
+  useEffect(() => { if (session.authenticated && !customPhone) setCustomPhone(session.phone); }, [session.phone, session.authenticated]);
   async function submit(event) {
     event.preventDefault(); setFeedback("");
-    if (!session.authenticated) { router.push("/login?next=%2Fcustom"); return; }
+    if (!session.authenticated || session.phone !== customPhone) { setFeedback("Verify your mobile number before sending your design request."); return; }
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
     setBusy(true);
     try {
       let uploadId;
       if (file) { const formData = new FormData(); formData.append("reference", file); const uploaded = await api("/uploads", { method: "POST", formData }); uploadId = uploaded.id; }
-      const result = await api("/custom-requests", { method: "POST", body: { ...data, sample, uploadId } });
+      const result = await api("/custom-requests", { method: "POST", body: { ...data, customPhone, sample, uploadId } });
       setFeedback("Request " + result.reference + " received. We'll contact you after checking the design and availability.");
       form.reset(); setFile(null);
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }
-  return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Custom cakes</div><div className="page-heading"><div><h1>A cake that's entirely you</h1><p>Share a reference or start with a sample style.</p></div></div><div className="custom-layout"><div className="custom-images"><img src={images.floral} alt="Floral cake design"/>{[["Pastel flowers", images.floral], ["Berry tiers", images.custom], ["Rainbow layers", images.rainbow]].map(([name, src]) => <button type="button" className={"sample-button" + (sample === name ? " selected" : "")} onClick={() => setSample(name)} key={name}><img src={src} alt=""/>{name}</button>)}</div><form className="panel" onSubmit={submit}><h2>Tell us what you have in mind</h2><label className="upload-zone" htmlFor="design-file">Upload a design reference<input id="design-file" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }}/><small>A photo or sketch. JPG / PNG up to 10 MB.</small></label>{sample && <p className="subtle">Sample style: {sample}</p>}<div className="field-row"><div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="weight">Weight</label><select id="weight" name="weight">{["1 kg", "1.5 kg", "2 kg", "3 kg or more"].map((value) => <option key={value}>{value}</option>)}</select></div></div><div className="field-row"><div className="field"><label htmlFor="flavour">Flavour</label><select id="flavour" name="flavour">{["Chocolate", "Vanilla", "Butterscotch", "Red velvet"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="budget">Budget (optional)</label><input id="budget" name="budget" type="number" min="0" placeholder="₹"/></div></div><div className="field"><label htmlFor="notes">Design notes</label><textarea id="notes" name="notes" maxLength={2000} placeholder="Colours, theme, name and age"/></div><div className="field-row"><div className="field"><label htmlFor="requiredDate">Required date</label><input id="requiredDate" name="requiredDate" type="date" required/></div><div className="field"><label htmlFor="customPincode">Delivery pincode</label><input id="customPincode" name="customPincode" defaultValue={pincode} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/></div></div><div className="field"><label htmlFor="customPhone">Mobile number</label><input id="customPhone" name="customPhone" defaultValue={session.phone} inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} required/></div><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={busy}>Request a design & quote</button><p className="subtle">We confirm the design and final price before payment.</p></form></div></div>;
+  return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Custom cakes</div><div className="page-heading"><div><h1>A cake that's entirely you</h1><p>Share a reference or start with a sample style.</p></div></div><div className="custom-layout"><div className="custom-images"><img src={images.floral} alt="Floral cake design"/>{[["Pastel flowers", images.floral], ["Berry tiers", images.custom], ["Rainbow layers", images.rainbow]].map(([name, src]) => <button type="button" className={"sample-button" + (sample === name ? " selected" : "")} onClick={() => setSample(name)} key={name}><img src={src} alt=""/>{name}</button>)}</div><form className="panel" onSubmit={submit}><h2>Tell us what you have in mind</h2><label className="upload-zone" htmlFor="design-file">Upload a design reference<input id="design-file" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }}/><small>A photo or sketch. JPG / PNG up to 10 MB.</small></label>{sample && <p className="subtle">Sample style: {sample}</p>}<div className="field-row"><div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="weight">Weight</label><select id="weight" name="weight">{["1 kg", "1.5 kg", "2 kg", "3 kg or more"].map((value) => <option key={value}>{value}</option>)}</select></div></div><div className="field-row"><div className="field"><label htmlFor="flavour">Flavour</label><select id="flavour" name="flavour">{["Chocolate", "Vanilla", "Butterscotch", "Red velvet"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="budget">Budget (optional)</label><input id="budget" name="budget" type="number" min="0" placeholder="₹"/></div></div><div className="field"><label htmlFor="notes">Design notes</label><textarea id="notes" name="notes" maxLength={2000} placeholder="Colours, theme, name and age"/></div><div className="field-row"><div className="field"><label htmlFor="requiredDate">Required date</label><input id="requiredDate" name="requiredDate" type="date" required/></div><div className="field"><label htmlFor="customPincode">Delivery pincode</label><input id="customPincode" name="customPincode" defaultValue={pincode} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/></div></div><div className="field"><h3>Your contact number</h3>{session.authenticated && session.phone === customPhone ? <p className="verified-badge">+91 {session.phone} · Verified</p> : <PhoneVerification phone={customPhone} onPhoneChange={setCustomPhone}/>}</div><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={busy}>Request a design & quote</button><p className="subtle">We confirm the design and final price before payment.</p></form></div></div>;
 }
