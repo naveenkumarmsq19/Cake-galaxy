@@ -20,7 +20,8 @@ const hours = 60 * 60 * 1000;
 const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => razorpayConfigured() && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
-const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
+const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
+const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
 async function deliveryAssignment(pincode) {
   const area = await ServiceArea.findOne({ pincode, active: true }).lean();
@@ -117,11 +118,12 @@ export function createApp() {
     if (await LoginChallenge.countDocuments({ phone, createdAt: { $gt: new Date(Date.now() - 15 * 60_000) } }) >= 5) throw new HttpError(429, "Please try this number again later.");
     const recent = await LoginChallenge.findOne({ phone, createdAt: { $gt: new Date(Date.now() - 30_000) } });
     if (recent) throw new HttpError(429, "Please wait before requesting another code.");
-    const sent = await sendOtp(phone);
+    const testMode = testPhoneEnabled(phone);
+    const sent = testMode ? { code: process.env.TEST_OTP_CODE } : await sendOtp(phone);
     const requestId = randomUUID();
     const codeHash = sent.code ? hash(requestId + ":" + sent.code) : null;
-    await LoginChallenge.create({ requestId, phone, codeHash, expiresAt: new Date(Date.now() + 5 * 60_000) });
-    res.status(201).json({ sent: true, requestId, retryAfter: 30 });
+    await LoginChallenge.create({ requestId, phone, codeHash, testMode, expiresAt: new Date(Date.now() + 5 * 60_000) });
+    res.status(201).json({ sent: true, requestId, retryAfter: 30, testMode });
   });
   app.post("/api/auth/verify", otpLimit, async (req, res) => {
     const requestId = text(req.body?.requestId, 60);
@@ -130,7 +132,7 @@ export function createApp() {
     const challenge = await LoginChallenge.findOneAndUpdate({ requestId, expiresAt: { $gt: new Date() }, attempts: { $lt: 5 } }, { $inc: { attempts: 1 } }, { new: true });
     if (!challenge) throw new HttpError(400, "This code has expired. Request a new one.");
     if (challenge.codeHash) {
-      if (process.env.NODE_ENV === "production" || !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) throw new HttpError(400, "That code is incorrect.");
+      if ((!challenge.testMode && process.env.NODE_ENV === "production") || (challenge.testMode && !testPhoneEnabled(challenge.phone)) || !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) throw new HttpError(400, "That code is incorrect.");
     } else await verifyOtp(challenge.phone, otp);
     const consumed = await LoginChallenge.deleteOne({ _id: challenge._id });
     if (consumed.deletedCount !== 1) throw new HttpError(409, "That code has already been used. Request a new one.");
@@ -178,15 +180,23 @@ export function createApp() {
     res.status(201).json({ reference });
   });
 
-  app.get("/api/checkout/config", (_req, res) => res.json({ paymentsEnabled: merchantReady(), keyId: merchantReady() ? process.env.RAZORPAY_KEY_ID : "", taxRate: merchantReady() ? Number(process.env.GST_RATE_PERCENT) : null }));
+  app.get("/api/checkout/config", async (req, res) => {
+    const session = await findSession(req);
+    const testCodEnabled = !!session && testPhoneEnabled(session.phone);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ paymentsEnabled: merchantReady(), testCodEnabled, keyId: merchantReady() ? process.env.RAZORPAY_KEY_ID : "", taxRate: merchantReady() || testCodEnabled ? Number(process.env.GST_RATE_PERCENT || "0") : null });
+  });
 
   app.post("/api/checkout/orders", authenticated, async (req, res) => {
-    if (!merchantReady()) throw new HttpError(503, "Online payments are unavailable. No payment has been taken.");
     const body = req.body || {};
+    const testCod = body.preferredMethod === "test_cod";
+    if (testCod ? !testPhoneEnabled(req.customer) : !merchantReady()) throw new HttpError(503, "This payment option is unavailable. No payment has been taken.");
     const idempotencyKey = text(body.idempotencyKey, 64);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) throw new HttpError(400, "Please refresh checkout and try again.");
     const existing = await Order.findOne({ customerPhone: req.customer, idempotencyKey });
     if (existing) {
+      if (existing.paymentStatus === "test_cod" && testCod) return res.json({ reference: existing.reference, amount: existing.amount, currency: "INR", status: "confirmed", order: returnOrder(existing) });
+      if (existing.paymentStatus === "test_cod" || testCod) throw new HttpError(409, "This order was already submitted with a different payment option. Refresh checkout and try again.");
       if (!existing.razorpayOrderId) throw new HttpError(409, "Order is being prepared. Please check My orders before retrying.");
       return res.json({ reference: existing.reference, orderId: existing.razorpayOrderId, amount: existing.amount, currency: "INR" });
     }
@@ -225,11 +235,13 @@ export function createApp() {
       gst = { gstin: text(body.gst.gstin, 15).toUpperCase(), business: text(body.gst.business, 120), billingAddress: text(body.gst.billingAddress, 250) };
       if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst.gstin)) throw new HttpError(400, "Enter a valid GSTIN.");
     }
-    const reference = "CG" + randomBytes(8).toString("hex").toUpperCase();
+    const reference = (testCod ? "CGT" : "CG") + randomBytes(8).toString("hex").toUpperCase();
     const order = await Order.create({ reference, customerPhone: req.customer, sender: { name: senderName, phone: req.customer }, idempotencyKey, items, branchId: branch._id,
       assignmentHistory: [{ from: null, to: branch._id, reason: "pincode", at: new Date() }],
       address: { name: text(address.name, 80), phone: recipientPhone, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60) },
-      delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: address.whatsapp === true });
+      delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: !testCod && address.whatsapp === true,
+      ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : {}) });
+    if (testCod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });
     const providerOrder = await razorpay("POST", "/orders", { amount, currency: "INR", receipt: reference, notes: { reference } });
     if (!providerOrder.id || providerOrder.amount !== amount || providerOrder.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
     order.razorpayOrderId = providerOrder.id;
@@ -263,7 +275,7 @@ export function createApp() {
     if (!issueInvoice(order, res)) throw new HttpError(503, "GST invoice details haven't been configured yet.");
   });
   app.post("/api/orders/:reference/cancellation", authenticated, async (req, res) => {
-    const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: "paid", status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
+    const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: { $in: ["paid", "test_cod"] }, status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
       { $set: { cancellation: { reason: text(req.body?.reason || "", 300, false), requestedAt: new Date(), status: "requested" } } }, { new: true });
     if (!order) throw new HttpError(409, "This order can't accept a cancellation request. Please contact support.");
     res.status(201).json({ reference: order.reference, status: "requested" });
