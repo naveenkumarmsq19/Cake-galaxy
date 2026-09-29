@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "node --watch src/index.js", "start": "node src/index.js", "check": "node --test test/*.test.js" },
+  "scripts": { "dev": "node --watch src/index.js", "start": "node src/index.js", "check": "node --test test/*.test.js", "admin:reset": "node scripts/reset-admin.js" },
   "dependencies": {
     "@cake-galaxy/catalog": "1.0.0",
     "cookie-parser": "1.4.7",
