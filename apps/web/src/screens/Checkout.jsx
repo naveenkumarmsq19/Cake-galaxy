@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { money, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { useStore, Icon } from "../components/Storefront";
 import { Summary } from "../components/Products";
+import PhoneVerification from "../components/PhoneVerification";
 
 const apiRoot = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
 const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
@@ -21,24 +22,37 @@ export function Cart() {
 
 export function Address() {
   const router = useRouter();
-  const { cart, address, pincode, delivery, checkDelivery, saveCheckoutDetails, session, hydrated } = useStore();
+  const { cart, address, sender, pincode, delivery, checkDelivery, saveCheckoutDetails, session, hydrated } = useStore();
+  const [senderPhone, setSenderPhone] = useState(sender?.phone || session.phone || "");
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => { if (session.authenticated && !senderPhone) setSenderPhone(session.phone); }, [session.phone, session.authenticated]);
   if (!hydrated) return <div className="wrap page empty-state"><h1>Loading your delivery details…</h1></div>;
   if (!cart.length) return <EmptyBag/>;
+
   async function submit(event) {
-    event.preventDefault(); setFeedback(""); setBusy(true);
+    event.preventDefault(); setFeedback("");
+    if (!session.authenticated || session.phone !== senderPhone) { setFeedback("Verify your mobile number before continuing."); return; }
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    if (!/^[6-9]\d{9}$/.test(data.phone)) { setFeedback("Enter a valid 10-digit mobile number."); setBusy(false); return; }
+    setBusy(true);
     try {
       const available = await checkDelivery(data.pincode);
       if (available.available === false) throw new Error("We can't deliver to this pincode yet.");
-      saveCheckoutDetails({ address: { name: data.name, phone: data.phone, line1: data.line1, line2: data.line2, pincode: data.pincode, city: data.city, whatsapp: data.whatsapp === "on" }, delivery: { date: data.date, slot: data.slot } });
-      router.push(available.unverified || session.authenticated && session.phone === data.phone ? "/checkout" : "/login?next=%2Fcheckout");
+      saveCheckoutDetails({
+        sender: { name: data.senderName.trim(), phone: senderPhone },
+        address: { name: data.recipientName.trim(), phone: data.recipientPhone, line1: data.line1, line2: data.line2, pincode: data.pincode, city: data.city, whatsapp: data.whatsapp === "on" },
+        delivery: { date: data.date, slot: data.slot }
+      });
+      router.push("/checkout");
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }
-  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>Where's the celebration?</h1></div><form className="panel" onSubmit={submit}><div className="field-row"><div className="field"><label htmlFor="name">Recipient name</label><input id="name" name="name" defaultValue={address?.name} maxLength={80} required/></div><div className="field"><label htmlFor="phone">Mobile number</label><input id="phone" name="phone" type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} defaultValue={address?.phone || session.phone} required/></div></div><div className="field"><label htmlFor="line1">House / flat and street</label><input id="line1" name="line1" defaultValue={address?.line1} maxLength={160} required/></div><div className="field"><label htmlFor="line2">Area / landmark (optional)</label><input id="line2" name="line2" defaultValue={address?.line2} maxLength={160}/></div><div className="field-row"><div className="field"><label htmlFor="pincode">Pincode</label><input id="pincode" name="pincode" inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} defaultValue={address?.pincode || pincode} required/></div><div className="field"><label htmlFor="city">City</label><input id="city" name="city" defaultValue={address?.city || "Bengaluru"} maxLength={60} required/></div></div><div className="field-row"><div className="field"><label htmlFor="date">Preferred delivery date</label><input id="date" name="date" type="date" defaultValue={delivery.date} required/></div><div className="field"><label htmlFor="slot">Preferred time</label><select id="slot" name="slot" defaultValue={delivery.slot} required><option value="">Select a time</option>{slots.map((value) => <option key={value}>{value}</option>)}</select></div></div><label className="check-label"><input name="whatsapp" type="checkbox" defaultChecked={address?.whatsapp}/>Send order updates to this number on WhatsApp</label><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={busy}>Review your order <Icon name="arrow"/></button></form></div><Summary/></div></div>;
+
+  return <div className="wrap page"><div className="page-heading"><div><h1>Delivery details</h1><p>Tell us who is ordering and who will receive the cake.</p></div></div><div className="checkout-layout"><form onSubmit={submit}>
+    <section className="panel checkout-section"><h2>Your details</h2><p className="subtle">We will use your verified number for this order, updates and My orders.</p><div className="field"><label htmlFor="sender-name">Your name</label><input id="sender-name" name="senderName" defaultValue={sender?.name || ""} maxLength={80} autoComplete="name" required/></div><PhoneVerification phone={senderPhone} onPhoneChange={setSenderPhone}/><label className="check-label"><input name="whatsapp" type="checkbox" defaultChecked={address?.whatsapp}/>Send order updates to your verified number on WhatsApp</label></section>
+    <section className="panel checkout-section"><h2>Recipient details</h2><p className="subtle">Enter the person who will receive the cake. Their number can be different from yours.</p><div className="field-row"><div className="field"><label htmlFor="recipient-name">Recipient name</label><input id="recipient-name" name="recipientName" defaultValue={address?.name || ""} maxLength={80} required/></div><div className="field"><label htmlFor="recipient-phone">Recipient mobile number</label><input id="recipient-phone" name="recipientPhone" type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} defaultValue={address?.phone || ""} required/></div></div><div className="field"><label htmlFor="line1">House / flat and street</label><input id="line1" name="line1" defaultValue={address?.line1} maxLength={160} required/></div><div className="field"><label htmlFor="line2">Area / landmark (optional)</label><input id="line2" name="line2" defaultValue={address?.line2} maxLength={160}/></div><div className="field-row"><div className="field"><label htmlFor="pincode">Delivery pincode</label><input id="pincode" name="pincode" inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} defaultValue={address?.pincode || pincode} required/></div><div className="field"><label htmlFor="city">City</label><input id="city" name="city" defaultValue={address?.city || "Bengaluru"} maxLength={60} required/></div></div></section>
+    <section className="panel checkout-section"><h2>Delivery time</h2><div className="field-row"><div className="field"><label htmlFor="date">Preferred delivery date</label><input id="date" name="date" type="date" defaultValue={delivery.date} required/></div><div className="field"><label htmlFor="slot">Preferred time</label><select id="slot" name="slot" defaultValue={delivery.slot} required><option value="">Select a time</option>{slots.map((value) => <option key={value}>{value}</option>)}</select></div></div><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={busy}>Review your order <Icon name="arrow"/></button></section>
+  </form><Summary/></div></div>;
 }
 
 function loadCheckout() {
@@ -54,7 +68,7 @@ function loadCheckout() {
 
 export function Checkout() {
   const router = useRouter();
-  const { cart, address, delivery, quote, subtotal, session, api, checkDelivery, clearCart, setReceipt, hydrated } = useStore();
+  const { cart, address, sender, delivery, quote, subtotal, session, api, checkDelivery, clearCart, setReceipt, hydrated } = useStore();
   const [config, setConfig] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,21 +82,22 @@ export function Checkout() {
   }, [hydrated, address?.pincode]);
   if (!hydrated) return <div className="wrap page empty-state"><h1>Preparing checkout…</h1></div>;
   if (!cart.length) return <EmptyBag/>;
-  if (!address || !delivery.date || !delivery.slot) return <div className="wrap page empty-state"><h1>Add delivery details first</h1><Link href="/address" className="button">Add address</Link></div>;
+  if (!address || !sender || !delivery.date || !delivery.slot) return <div className="wrap page empty-state"><h1>Add delivery details first</h1><Link href="/address" className="button">Add delivery details</Link></div>;
+  if (!session.authenticated || session.phone !== sender.phone) return <div className="wrap page empty-state"><h1>Verify your number to continue</h1><p>Return to your delivery details and verify your mobile number.</p><Link href="/address" className="button">Verify number</Link></div>;
 
   async function submit(event) {
     event.preventDefault(); setFeedback("");
-    if (!session.authenticated || session.phone !== address.phone) { router.push("/login?next=%2Fcheckout"); return; }
+    if (!session.authenticated || session.phone !== sender.phone) { router.push("/address"); return; }
     if (!config?.paymentsEnabled || !quote?.available) { setFeedback("Payment and delivery availability must be confirmed before you pay. No charge has been made."); return; }
     setBusy(true);
     const form = new FormData(event.currentTarget);
     try {
-      const fingerprint = JSON.stringify({ cart, address, delivery, gstEnabled, gstin: form.get("gstin"), business: form.get("business"), billingAddress: form.get("billingAddress") });
+      const fingerprint = JSON.stringify({ cart, sender, address, delivery, gstEnabled, gstin: form.get("gstin"), business: form.get("business"), billingAddress: form.get("billingAddress") });
       if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
       const idempotencyKey = attempt.current.key;
       const data = await api("/checkout/orders", { method: "POST", body: {
         items: cart.map(({ productId, size, quantity, flavour, eggless, message, addons, uploadId }) => ({ productId, size, quantity, flavour, eggless, message, addons, uploadId })),
-        address, delivery, preferredMethod: form.get("payment"),
+        sender, address, delivery, preferredMethod: form.get("payment"),
         gst: gstEnabled ? { gstin: form.get("gstin"), business: form.get("business"), billingAddress: form.get("billingAddress") } : null,
         idempotencyKey
       } });
@@ -91,7 +106,7 @@ export function Checkout() {
       if (!quote?.available || data.amount !== expected) throw new Error("The order total has changed. Please review your bag and delivery details before paying.");
       await loadCheckout();
       const confirmation = await new Promise((resolve, reject) => {
-        const payment = new window.Razorpay({ key: config.keyId, order_id: data.orderId, amount: data.amount, currency: "INR", name: "Cake Galaxy", description: "Cake order " + data.reference, prefill: { name: address.name, contact: "+91" + address.phone }, theme: { color: "#738874" }, modal: { ondismiss: () => reject(new Error("Payment window closed. Your bag is saved.")) }, handler: resolve });
+        const payment = new window.Razorpay({ key: config.keyId, order_id: data.orderId, amount: data.amount, currency: "INR", name: "Cake Galaxy", description: "Cake order " + data.reference, prefill: { name: sender.name, contact: "+91" + sender.phone }, theme: { color: "#738874" }, modal: { ondismiss: () => reject(new Error("Payment window closed. Your bag is saved.")) }, handler: resolve });
         payment.on("payment.failed", () => setFeedback("Payment didn't complete. Please try again after checking your order status."));
         payment.open();
       });
@@ -103,36 +118,16 @@ export function Checkout() {
     finally { setBusy(false); }
   }
 
-  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p><p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><h2>How would you like to pay?</h2>{[["upi", "UPI", "Google Pay, PhonePe and other UPI apps"], ["card", "Credit or debit card", "Choose your card in the secure payment window"], ["netbanking", "Netbanking", "Select your bank in the payment window"]].map(([id, title, info]) => <label className="payment-option" key={id}><input type="radio" name="payment" value={id} defaultChecked={id === "upi"}/><span><strong>{title}</strong><small>{info}</small></span></label>)}<p className="subtle">Available payment methods are confirmed in Razorpay.</p></div><div className="panel"><h2>Billing details</h2><label className="check-label"><input type="checkbox" checked={gstEnabled} onChange={(event) => setGstEnabled(event.target.checked)}/>Add GST details for a business invoice</label>{gstEnabled && <><div className="field"><label htmlFor="gstin">GSTIN</label><input id="gstin" name="gstin" maxLength={15} required/></div><div className="field"><label htmlFor="business">Registered business name</label><input id="business" name="business" maxLength={120} required/></div><div className="field"><label htmlFor="billingAddress">Business billing address</label><input id="billingAddress" name="billingAddress" maxLength={250} required/></div></>}</div><div className="panel"><label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !config?.paymentsEnabled || !quote?.available}>{busy ? "Please wait…" : "Continue to Razorpay"}</button></div></form></div><Summary taxRate={config?.taxRate}/></div></div>;
+  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Your details</h2><p><strong>{sender.name}</strong><br/>+91 {sender.phone} · Verified</p><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p><p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><h2>How would you like to pay?</h2>{[["upi", "UPI", "Google Pay, PhonePe and other UPI apps"], ["card", "Credit or debit card", "Choose your card in the secure payment window"], ["netbanking", "Netbanking", "Select your bank in the payment window"]].map(([id, title, info]) => <label className="payment-option" key={id}><input type="radio" name="payment" value={id} defaultChecked={id === "upi"}/><span><strong>{title}</strong><small>{info}</small></span></label>)}<p className="subtle">Available payment methods are confirmed in Razorpay.</p></div><div className="panel"><h2>Billing details</h2><label className="check-label"><input type="checkbox" checked={gstEnabled} onChange={(event) => setGstEnabled(event.target.checked)}/>Add GST details for a business invoice</label>{gstEnabled && <><div className="field"><label htmlFor="gstin">GSTIN</label><input id="gstin" name="gstin" maxLength={15} required/></div><div className="field"><label htmlFor="business">Registered business name</label><input id="business" name="business" maxLength={120} required/></div><div className="field"><label htmlFor="billingAddress">Business billing address</label><input id="billingAddress" name="billingAddress" maxLength={250} required/></div></>}</div><div className="panel"><label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !config?.paymentsEnabled || !quote?.available}>{busy ? "Please wait…" : "Continue to Razorpay"}</button></div></form></div><Summary taxRate={config?.taxRate}/></div></div>;
 }
 
 export function Login() {
   const params = useSearchParams();
   const router = useRouter();
-  const { api, setSession, refreshSession } = useStore();
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [requestId, setRequestId] = useState("");
-  const [feedback, setFeedback] = useState("");
-  const [busy, setBusy] = useState(false);
-  const next = params.get("next")?.startsWith("/") && !params.get("next").startsWith("//") ? params.get("next") : "/orders";
-  async function submit(event) {
-    event.preventDefault(); setBusy(true); setFeedback("");
-    try {
-      if (!requestId) {
-        const result = await api("/auth/otp", { method: "POST", body: { phone: "+91" + phone } });
-        if (result.sent !== true || !result.requestId) throw new Error("Couldn't send the code. Please try again.");
-        setRequestId(result.requestId);
-      } else {
-        const result = await api("/auth/verify", { method: "POST", body: { requestId, otp } });
-        if (!result.authenticated) throw new Error("Code couldn't be verified.");
-        setSession({ authenticated: true, phone, csrfToken: result.csrfToken });
-        await refreshSession(); router.replace(next);
-      }
-    } catch (error) { setFeedback(error.message); }
-    finally { setBusy(false); }
-  }
-  return <div className="wrap page"><section className="auth-layout"><div className="auth-photo"><img src="/images/berry.jpg" alt="Floral celebration cake"/></div><div className="auth-content"><span className="overline">WELCOME TO CAKE GALAXY</span><h1>{requestId ? "Just one more step." : "Good things start here."}</h1><p>{requestId ? "Enter the code sent to +91 " + phone + "." : "Sign in with your mobile number to save your orders and check out securely."}</p><form onSubmit={submit}>{requestId ? <><label htmlFor="otp">Verification code</label><input className="otp-input" id="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} minLength={6} value={otp} onChange={(event) => setOtp(event.target.value)} required/><button className="button full" disabled={busy}>Verify & continue</button><button className="text-link" type="button" onClick={() => { setRequestId(""); setOtp(""); setFeedback(""); }}>Use another number</button></> : <><label htmlFor="login-phone">Your mobile number</label><div className="phone-field"><span>+91</span><input id="login-phone" type="tel" inputMode="numeric" autoComplete="tel-national" pattern="[6-9][0-9]{9}" maxLength={10} value={phone} onChange={(event) => setPhone(event.target.value)} required/></div><button className="button full" disabled={busy}>Send verification code</button></>}<p className="form-message" role="status">{feedback}</p></form></div></section></div>;
+  const requested = params.get("next") || "/orders";
+  const destination = requested === "/checkout" ? "/address" : requested.startsWith("/") && !requested.startsWith("//") ? requested : "/orders";
+  useEffect(() => { router.replace(destination); }, [destination, router]);
+  return <div className="wrap page empty-state"><h1>Continue on this page</h1><p>Phone verification now happens in your delivery details or My orders.</p><Link href={destination} className="button">Continue</Link></div>;
 }
 
 export function Confirmation() {
@@ -152,6 +147,7 @@ export function Orders() {
   const [orders, setOrders] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [requesting, setRequesting] = useState("");
+  const [phone, setPhone] = useState("");
   useEffect(() => {
     if (session.authenticated) api("/orders").then((data) => setOrders(data.orders || [])).catch((error) => setFeedback(error.message));
   }, [session.authenticated]);
@@ -163,6 +159,6 @@ export function Orders() {
     catch (error) { setFeedback(error.message); }
     finally { setRequesting(""); }
   }
-  if (!session.authenticated) return <div className="wrap page empty-state"><h1>Sign in to see your orders</h1><Link href="/login?next=%2Forders" className="button">Sign in</Link></div>;
+  if (!session.authenticated) return <div className="wrap page"><div className="orders-verification panel"><h1>My orders</h1><p>Verify the number you used to place your order.</p><PhoneVerification phone={phone} onPhoneChange={setPhone}/></div></div>;
   return <div className="wrap page"><div className="page-heading"><h1>My orders</h1></div><p className="form-message" role="status">{feedback}</p>{orders.length ? <div className="orders-grid">{orders.map((order) => <article className="panel" key={order.reference}><h2>Order {order.reference}</h2><p>{order.statusLabel || order.status} · {money(order.amount)}</p><p className="subtle">{order.deliveryLabel}</p>{order.paymentStatus === "paid" && <a href={apiRoot + "/orders/" + encodeURIComponent(order.reference) + "/invoice"} target="_blank" rel="noopener noreferrer" className="text-link">Download invoice</a>}{order.paymentStatus === "paid" && order.status !== "delivered" && order.status !== "cancelled" && <button type="button" className="text-link" disabled={requesting === order.reference} onClick={() => cancel(order)}>Request cancellation</button>}</article>)}</div> : !feedback && <div className="empty-state"><h2>No orders yet</h2><p>Your confirmed orders will appear here.</p><Link href="/shop" className="button">Explore cakes</Link></div>}</div>;
 }
