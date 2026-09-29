@@ -53,7 +53,7 @@ test("HTTP health works and checkout stays disabled without business/provider co
     const health = await fetch(base + "/api/health");
     assert.deepEqual(await health.json(), { ok: true });
     const config = await fetch(base + "/api/checkout/config");
-    assert.deepEqual(await config.json(), { paymentsEnabled: false, keyId: "", taxRate: null });
+    assert.deepEqual(await config.json(), { paymentsEnabled: false, testCodEnabled: false, keyId: "", taxRate: null });
     const badWebhook = await fetch(base + "/api/webhooks/razorpay", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     assert.equal(badWebhook.status, 401);
   } finally { await new Promise((resolve) => server.close(resolve)); }
