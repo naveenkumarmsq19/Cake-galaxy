@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import { products } from "@cake-galaxy/catalog";
 import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
-import { bootstrapSuperAdmin } from "./bootstrap.js";
+import { bootstrapSuperAdmin, ensureBaseServiceAreas } from "./bootstrap.js";
 
 config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -34,10 +34,8 @@ async function start() {
   })));
   const deliveryFee = Number(process.env.DELIVERY_FEE_PAISE || "4900");
   if (!Number.isSafeInteger(deliveryFee) || deliveryFee < 0) throw new Error("DELIVERY_FEE_PAISE must be a non-negative whole number.");
-  for (const branch of initialBranches) {
-    const saved = await Branch.findOne({ code: branch.code });
-    await ServiceArea.updateOne({ pincode: branch.basePincode }, { $setOnInsert: { pincode: branch.basePincode, branchId: saved._id, deliveryFee, active: true } }, { upsert: true });
-  }
+  const allBranches = await Branch.find({}, { _id: 1, basePincode: 1 }).lean();
+  await ensureBaseServiceAreas(allBranches, ServiceArea, deliveryFee);
   const adminSetup = await bootstrapSuperAdmin(AdminUser, process.env.ADMIN_BOOTSTRAP_EMAIL, process.env.ADMIN_BOOTSTRAP_PASSWORD);
   if (adminSetup === "created") process.stdout.write("Initial Super Admin created. Remove bootstrap secrets from the environment and restart.\n");
   if (adminSetup === "missing") process.stdout.write("Admin setup pending: set ADMIN_BOOTSTRAP_EMAIL and a 12–128 character ADMIN_BOOTSTRAP_PASSWORD once.\n");
