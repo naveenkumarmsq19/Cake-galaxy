@@ -65,6 +65,8 @@ export function StoreProvider({ children }) {
       if (available.available) {
         setPincode(pin);
         setQuote(available);
+      } else {
+        setQuote(null);
       }
       return available;
     } catch (error) {
@@ -165,7 +167,7 @@ export function Header() {
     if (!/^[1-9]\d{5}$/.test(pin)) { setFeedback("Enter a valid 6-digit pincode."); return; }
     try {
       const available = await checkDelivery(pin);
-      if (available.available === false) { setFeedback("Delivery isn't available to that pincode yet."); return; }
+      if (available.available !== true) { setFeedback(available.available === false ? "Delivery isn't available to that pincode yet." : "Delivery could not be confirmed right now. Please try again."); return; }
       setDeliveryOpen(false);
     } catch (error) { setFeedback(error.message); }
   }
