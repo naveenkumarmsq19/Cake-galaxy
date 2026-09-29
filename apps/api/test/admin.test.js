@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Session } from "../src/models.js";
 import { hashPassword } from "../src/admin.js";
-import { bootstrapSuperAdmin, resetSuperAdminPassword } from "../src/bootstrap.js";
+import { bootstrapSuperAdmin, ensureBaseServiceAreas, resetSuperAdminPassword } from "../src/bootstrap.js";
 
 test("invalid bootstrap credentials never prevent startup or create an admin", async () => {
   let created = null;
@@ -32,6 +32,17 @@ test("reset updates only an existing Super Admin and revokes their sessions", as
   assert.deepEqual(update.filter, { _id: "admin-id", role: "super_admin" });
   assert.match(update.change.$set.passwordHash, /^[0-9a-f]{32}:[0-9a-f]{128}$/);
   assert.deepEqual(revoked, { userId: "admin-id" });
+});
+
+test("existing branch base pincode is added without changing a paused mapping", async () => {
+  const rows = new Map([["560058", { branchId: "other", active: false, deliveryFee: 2500 }]]);
+  const areas = { updateOne: async ({ pincode }, { $setOnInsert }, options) => {
+    assert.equal(options.upsert, true);
+    if (!rows.has(pincode)) rows.set(pincode, $setOnInsert);
+  } };
+  await ensureBaseServiceAreas([{ _id: "first", basePincode: "560058" }, { _id: "third", basePincode: "560072" }], areas, 4900);
+  assert.deepEqual(rows.get("560058"), { branchId: "other", active: false, deliveryFee: 2500 });
+  assert.deepEqual(rows.get("560072"), { pincode: "560072", branchId: "third", active: true, deliveryFee: 4900 });
 });
 
 test("approved Pages and custom domains both receive credentialed CORS headers", async () => {
