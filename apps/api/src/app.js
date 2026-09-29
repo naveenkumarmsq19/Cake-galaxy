@@ -191,8 +191,11 @@ export function createApp() {
       return res.json({ reference: existing.reference, orderId: existing.razorpayOrderId, amount: existing.amount, currency: "INR" });
     }
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 30) throw new HttpError(400, "Add a cake to your bag first.");
+    const sender = body.sender || {};
+    if (phoneNumber(sender.phone) !== req.customer) throw new HttpError(400, "Verify your mobile number before placing the order.");
+    const senderName = text(sender.name, 80);
     const address = body.address || {};
-    if (phoneNumber(address.phone) !== req.customer) throw new HttpError(400, "Verify the mobile number on your delivery address.");
+    const recipientPhone = phoneNumber(address.phone);
     const pincode = text(address.pincode, 6);
     if (!/^[1-9][0-9]{5}$/.test(pincode)) throw new HttpError(400, "Enter a valid delivery pincode.");
     const assignment = await deliveryAssignment(pincode);
@@ -223,9 +226,9 @@ export function createApp() {
       if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst.gstin)) throw new HttpError(400, "Enter a valid GSTIN.");
     }
     const reference = "CG" + randomBytes(8).toString("hex").toUpperCase();
-    const order = await Order.create({ reference, customerPhone: req.customer, idempotencyKey, items, branchId: branch._id,
+    const order = await Order.create({ reference, customerPhone: req.customer, sender: { name: senderName, phone: req.customer }, idempotencyKey, items, branchId: branch._id,
       assignmentHistory: [{ from: null, to: branch._id, reason: "pincode", at: new Date() }],
-      address: { name: text(address.name, 80), phone: req.customer, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60) },
+      address: { name: text(address.name, 80), phone: recipientPhone, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60) },
       delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: address.whatsapp === true });
     const providerOrder = await razorpay("POST", "/orders", { amount, currency: "INR", receipt: reference, notes: { reference } });
     if (!providerOrder.id || providerOrder.amount !== amount || providerOrder.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
