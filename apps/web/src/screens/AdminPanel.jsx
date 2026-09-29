@@ -37,7 +37,12 @@ export default function AdminPanel() {
       });
     } catch { throw new Error("Unable to connect to the admin API (" + API_ROOT + "). Check the Render health URL, Cloudflare NEXT_PUBLIC_API_URL, and Render WEB_ORIGINS settings."); }
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "Request failed. Try again.");
+    if (!response.ok) {
+      if (response.status === 401 && payload.error === "Admin sign in required." && path !== "me") {
+        throw new Error("Your admin session was not saved. On Cloudflare Pages, set NEXT_PUBLIC_API_URL to /api, redeploy the website, then sign in again.");
+      }
+      throw new Error(payload.error || "Request failed. Try again.");
+    }
     return payload;
   }, []);
 
@@ -72,10 +77,17 @@ export default function AdminPanel() {
     try {
       const result = await request("login", "POST", login);
       csrf.current = result.csrfToken;
-      setUser(result.user);
+      const confirmed = await request("me");
+      if (confirmed.user?.id !== result.user?.id) throw new Error("Your admin session was not saved. On Cloudflare Pages, set NEXT_PUBLIC_API_URL to /api, redeploy the website, then sign in again.");
+      csrf.current = confirmed.csrfToken;
+      await refresh(confirmed.user.role);
+      setUser(confirmed.user);
       setLogin({ email: "", password: "" });
-      await refresh(result.user.role);
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      csrf.current = "";
+      setUser(null);
+      setError(/Admin sign in required/i.test(err.message) ? "Your admin session was not saved. On Cloudflare Pages, set NEXT_PUBLIC_API_URL to /api, redeploy the website, then sign in again." : err.message);
+    }
     finally { setBusy(false); }
   }
 
