@@ -1,6 +1,6 @@
 # Customer API
 
-The Express service lives in `apps/api`. Routes are under `/api`. Responses return JSON; errors use `{ "error": "customer-facing message" }`. `Session` is a server-stored random HttpOnly cookie, and authenticated writes require the `X-CSRF-Token` returned by the session or OTP verification route. Configure `WEB_ORIGIN` to the exact storefront origin, or `WEB_ORIGINS` as a comma-separated list of allowed website origins. Browser requests send cookies with `credentials: include`.
+The Express service lives in `apps/api`. Routes are under `/api`. Responses return JSON; errors use `{ "error": "customer-facing message" }`. `Session` is a server-stored random HttpOnly cookie, and authenticated writes require the `X-CSRF-Token` returned by the session or OTP verification route. Configure `WEB_ORIGIN` to the exact storefront origin, or `WEB_ORIGINS` as a comma-separated list of allowed website origins. Browser requests send cookies with `credentials: include`. On Cloudflare Pages, route the browser through the website's `/api/*` Function and set `NEXT_PUBLIC_API_URL=/api` so the cookie is first-party.
 
 | Method and route | Behavior |
 | --- | --- |
@@ -14,7 +14,7 @@ The Express service lives in `apps/api`. Routes are under `/api`. Responses retu
 | `POST /uploads` | Private photo/design upload to GridFS, max 10 MB JPG/PNG, re-encoded with Sharp. |
 | `POST /custom-requests` | Store design reference and request after verifying phone, image and delivery pincode. |
 | `GET /checkout/config` | Whether real checkout is enabled and the public Razorpay key ID. |
-| `POST /checkout/orders` | Validate owned uploads, product options, active branch mapping, GST details, date/slot and calculate totals on the server; persist assigned branch and create provider order. Requires a UUID `idempotencyKey`. |
+| `POST /checkout/orders` | Require an OTP-verified sender phone in `sender`, validate the separate recipient name/phone/address, owned uploads, product options, active branch mapping, GST details, date/slot and calculate totals on the server; persist assigned branch and create provider order. Requires a UUID `idempotencyKey`. |
 | `POST /checkout/verify` | Verify signature against stored order ID and fetch the payment to confirm captured status, order, amount and INR currency. |
 | `POST /webhooks/razorpay` | Verify raw-body webhook signature and reconcile `payment.captured`. Set its secret in the Razorpay dashboard. |
 | `GET /orders` | Recent orders for verified customer only. |
