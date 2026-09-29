@@ -30,7 +30,7 @@ const emailAddress = (value) => {
   return result;
 };
 const visibleUser = (user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.role, branchId: user.branchId ? String(user.branchId) : null, active: user.active });
-const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, cancellation: order.cancellation, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
+const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, cancellation: order.cancellation, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
 const scoped = (req) => req.admin.role === "super_admin" ? {} : { branchId: req.admin.branchId };
 
 export async function hashPassword(password) {
