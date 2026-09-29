@@ -18,3 +18,13 @@ export async function resetSuperAdminPassword(store, sessions, email, password) 
   if (updated.matchedCount !== 1) throw new Error("Super Admin account changed. Retry the reset.");
   await sessions.deleteMany({ userId: user._id });
 }
+
+export async function ensureBaseServiceAreas(branches, areas, deliveryFee) {
+  for (const branch of branches) {
+    await areas.updateOne(
+      { pincode: branch.basePincode },
+      { $setOnInsert: { pincode: branch.basePincode, branchId: branch._id, deliveryFee, active: true } },
+      { upsert: true }
+    );
+  }
+}
