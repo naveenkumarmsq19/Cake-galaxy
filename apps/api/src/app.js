@@ -65,11 +65,12 @@ async function confirmCaptured(order, paymentId) {
 
 export function createApp() {
   const app = express();
-  const origin = process.env.WEB_ORIGIN || "http://localhost:3000";
+  const origins = (process.env.WEB_ORIGINS || process.env.WEB_ORIGIN || "http://localhost:3000")
+    .split(",").map((value) => value.trim().replace(/\/$/, "")).filter(Boolean);
   app.disable("x-powered-by");
   if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
   app.use((req, res, next) => { res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); next(); });
-  app.use(cors({ origin, credentials: true }));
+  app.use(cors({ origin: origins, credentials: true }));
   app.use(cookieParser());
 
   app.post("/api/webhooks/razorpay", express.raw({ type: "application/json", limit: "1mb" }), async (req, res, next) => {
@@ -88,7 +89,7 @@ export function createApp() {
   app.use(express.json({ limit: "64kb" }));
   app.use("/api", rateLimit({ windowMs: 15 * 60 * 1000, limit: 180, standardHeaders: "draft-8", legacyHeaders: false }));
   app.use("/api", (req, res, next) => {
-    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && req.get("origin") && req.get("origin") !== origin) return next(new HttpError(403, "Request origin isn't allowed."));
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && req.get("origin") && !origins.includes(req.get("origin"))) return next(new HttpError(403, "Request origin isn't allowed."));
     next();
   });
   app.use("/api/admin", createAdminRouter());

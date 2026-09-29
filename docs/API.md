@@ -1,6 +1,6 @@
 # Customer API
 
-The Express service lives in `apps/api`. Routes are under `/api`. Responses return JSON; errors use `{ "error": "customer-facing message" }`. `Session` is a server-stored random HttpOnly cookie, and authenticated writes require the `X-CSRF-Token` returned by the session or OTP verification route. Configure `WEB_ORIGIN` to the exact storefront origin; browser requests send cookies with `credentials: include`.
+The Express service lives in `apps/api`. Routes are under `/api`. Responses return JSON; errors use `{ "error": "customer-facing message" }`. `Session` is a server-stored random HttpOnly cookie, and authenticated writes require the `X-CSRF-Token` returned by the session or OTP verification route. Configure `WEB_ORIGIN` to the exact storefront origin, or `WEB_ORIGINS` as a comma-separated list of allowed website origins. Browser requests send cookies with `credentials: include`.
 
 | Method and route | Behavior |
 | --- | --- |

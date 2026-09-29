@@ -18,6 +18,25 @@ test("invalid bootstrap credentials never prevent startup or create an admin", a
   assert.equal(await bootstrapSuperAdmin({ exists: async () => true, create: async () => { throw new Error("Must not reset admin"); } }, "owner@example.com", "short"), "existing");
 });
 
+test("approved Pages and custom domains both receive credentialed CORS headers", async () => {
+  const old = process.env.WEB_ORIGINS;
+  process.env.WEB_ORIGINS = "https://cake-galaxy.pages.dev, https://www.cakegalaxy.example/";
+  try {
+    await withServer(async (base) => {
+      for (const origin of ["https://cake-galaxy.pages.dev", "https://www.cakegalaxy.example"]) {
+        const response = await fetch(base + "/api/health", { headers: { Origin: origin } });
+        assert.equal(response.headers.get("access-control-allow-origin"), origin);
+        assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+      }
+      const blocked = await fetch(base + "/api/health", { headers: { Origin: "https://other.example" } });
+      assert.equal(blocked.headers.get("access-control-allow-origin"), null);
+    });
+  } finally {
+    if (old === undefined) delete process.env.WEB_ORIGINS;
+    else process.env.WEB_ORIGINS = old;
+  }
+});
+
 async function withServer(run) {
   const server = createApp().listen(0);
   await new Promise((resolve) => server.once("listening", resolve));

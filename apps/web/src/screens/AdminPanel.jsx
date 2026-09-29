@@ -35,7 +35,7 @@ export default function AdminPanel() {
         headers: { Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...(method !== "GET" && csrf.current ? { "X-CSRF-Token": csrf.current } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body)
       });
-    } catch { throw new Error("Admin API connect aagala. API URL check pannunga."); }
+    } catch { throw new Error("Admin API connect aagala (" + API_ROOT + "). Render health URL, Cloudflare NEXT_PUBLIC_API_URL, and Render WEB_ORIGINS check pannunga."); }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Request failed. Try again.");
     return payload;
