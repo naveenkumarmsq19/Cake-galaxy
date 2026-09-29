@@ -68,6 +68,7 @@ const customSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   reference: { type: String, unique: true, required: true },
   customerPhone: { type: String, index: true, required: true },
+  sender: mongoose.Schema.Types.Mixed,
   idempotencyKey: { type: String, required: true },
   items: [mongoose.Schema.Types.Mixed],
   address: mongoose.Schema.Types.Mixed,
