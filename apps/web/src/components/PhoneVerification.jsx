@@ -29,7 +29,7 @@ export default function PhoneVerification({ phone, onPhoneChange, onVerified }) 
       if (!result.sent || !result.requestId) throw new Error("We couldn't send the code. Please try again.");
       setRequestPhone(phone);
       setRequestId(result.requestId);
-      setFeedback("Enter the code sent to +91 " + phone + ".");
+      setFeedback(result.testMode ? "Enter your configured test code. No SMS was sent." : "Enter the code sent to +91 " + phone + ".");
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }
@@ -54,6 +54,6 @@ export default function PhoneVerification({ phone, onPhoneChange, onVerified }) 
     <label htmlFor={id}>Your mobile number</label>
     <div className="phone-verify-row"><div className="phone-field"><span>+91</span><input id={id} type="tel" inputMode="numeric" autoComplete="tel-national" pattern="[6-9][0-9]{9}" maxLength={10} value={phone} onChange={(event) => changePhone(event.target.value)} required/></div>{verified ? <span className="verified-badge" role="status">Verified</span> : <button className="button outline" type="button" onClick={sendCode} disabled={busy || !/^[6-9][0-9]{9}$/.test(phone)}>{requestId ? "Resend code" : "Send code"}</button>}</div>
     {requestId && !verified && <div className="otp-verify-row"><label htmlFor={id + "-code"}>Verification code<input id={id + "-code"} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); verifyCode(); } }} placeholder="6-digit code"/></label><button className="button" type="button" disabled={busy || code.length !== 6} onClick={verifyCode}>Verify number</button></div>}
-    {feedback && <p className={requestId && feedback.startsWith("Enter the code") ? "subtle" : "form-message"} role="status">{feedback}</p>}
+    {feedback && <p className={requestId && feedback.startsWith("Enter ") ? "subtle" : "form-message"} role="status">{feedback}</p>}
   </div>;
 }
