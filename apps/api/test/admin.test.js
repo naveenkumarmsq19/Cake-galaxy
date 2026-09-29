@@ -105,7 +105,7 @@ test("branch manager order reads and writes are scoped to their branch", async (
       const update = await fetch(base + "/api/admin/orders/CG1/status", { method: "PATCH", headers: { ...headers, "X-CSRF-Token": csrf, "Content-Type": "application/json" }, body: JSON.stringify({ status: "preparing" }) });
       assert.equal(update.status, 409);
       assert.equal(String(writeFilter.branchId), String(id));
-      assert.equal(writeFilter.paymentStatus, "paid");
+      assert.deepEqual(writeFilter.paymentStatus, { $in: ["paid", "test_cod"] });
     });
   } finally {
     AdminSession.findOne = original.session; AdminUser.findById = original.user;
