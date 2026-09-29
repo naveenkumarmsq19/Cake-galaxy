@@ -9,3 +9,12 @@ export async function bootstrapSuperAdmin(store, emailValue, password) {
   catch (error) { if (error.code === 11000) return "conflict"; throw error; }
   return "created";
 }
+
+export async function resetSuperAdminPassword(store, sessions, email, password) {
+  const user = await store.findOne({ role: "super_admin", email });
+  if (!user) throw new Error("Super Admin account not found.");
+  const passwordHash = await hashPassword(password);
+  const updated = await store.updateOne({ _id: user._id, role: "super_admin" }, { $set: { passwordHash } });
+  if (updated.matchedCount !== 1) throw new Error("Super Admin account changed. Retry the reset.");
+  await sessions.deleteMany({ userId: user._id });
+}
