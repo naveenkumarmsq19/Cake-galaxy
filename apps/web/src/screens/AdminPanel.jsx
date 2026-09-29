@@ -38,10 +38,11 @@ export default function AdminPanel() {
     } catch { throw new Error("Unable to connect to the admin API (" + API_ROOT + "). Check the Render health URL, Cloudflare NEXT_PUBLIC_API_URL, and Render WEB_ORIGINS settings."); }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (response.status === 429) throw new Error("Too many sign-in attempts. Wait 15 minutes before trying again.");
       if (response.status === 401 && payload.error === "Admin sign in required." && path !== "me") {
         throw new Error("Your admin session was not saved. On Cloudflare Pages, set NEXT_PUBLIC_API_URL to /api, redeploy the website, then sign in again.");
       }
-      throw new Error(payload.error || "Request failed. Try again.");
+      throw new Error(payload.error || "Admin request failed (HTTP " + response.status + "). Check that the website's /api/health endpoint works and try again.");
     }
     return payload;
   }, []);
