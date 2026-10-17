@@ -29,7 +29,7 @@ test("eggless surcharge scales by weight and cakes over 1 kg receive a 10% disco
   assert.equal(egglessSurcharge({ size: 1.5, eggless: true }, cake), 15000);
   assert.equal(discountAmount({ size: 1.5, eggless: false }, cake), 22500);
   assert.equal(discountAmount({ size: 1, eggless: false }, cake), 0);
-  assert.equal(discountAmount({ size: 2, eggless: false }, products.find((p) => p.id === "chocolate-mint-cupcakes")), 0);
+  assert.equal(discountAmount({ size: 6, eggless: false }, products.find((p) => p.id === "chocolate-mint-cupcakes")), 0);
 
   const line = priceItem({ size: 1.5, quantity: 1, flavour: cake.flavour, eggless: false, addons: [] }, cake);
   assert.equal(line.originalUnitPrice, 224700);
