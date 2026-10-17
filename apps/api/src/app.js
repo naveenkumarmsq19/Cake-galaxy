@@ -119,11 +119,12 @@ export function createApp() {
     const recent = await LoginChallenge.findOne({ phone, createdAt: { $gt: new Date(Date.now() - 30_000) } });
     if (recent) throw new HttpError(429, "Please wait before requesting another code.");
     const testMode = testPhoneEnabled(phone);
-    const sent = testMode ? { code: process.env.TEST_OTP_CODE } : await sendOtp(phone);
+    const sent = testMode ? { code: process.env.TEST_OTP_CODE, channel: "test" } : await sendOtp(phone);
     const requestId = randomUUID();
     const codeHash = sent.code ? hash(requestId + ":" + sent.code) : null;
-    await LoginChallenge.create({ requestId, phone, codeHash, testMode, expiresAt: new Date(Date.now() + 5 * 60_000) });
-    res.status(201).json({ sent: true, requestId, retryAfter: 30, testMode });
+    const channel = sent.channel || "sms";
+    await LoginChallenge.create({ requestId, phone, codeHash, testMode, channel, expiresAt: new Date(Date.now() + 5 * 60_000) });
+    res.status(201).json({ sent: true, requestId, retryAfter: 30, testMode, channel });
   });
   app.post("/api/auth/verify", otpLimit, async (req, res) => {
     const requestId = text(req.body?.requestId, 60);
@@ -132,8 +133,18 @@ export function createApp() {
     const challenge = await LoginChallenge.findOneAndUpdate({ requestId, expiresAt: { $gt: new Date() }, attempts: { $lt: 5 } }, { $inc: { attempts: 1 } }, { new: true });
     if (!challenge) throw new HttpError(400, "This code has expired. Request a new one.");
     if (challenge.codeHash) {
-      if ((!challenge.testMode && process.env.NODE_ENV === "production") || (challenge.testMode && !testPhoneEnabled(challenge.phone)) || !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) throw new HttpError(400, "That code is incorrect.");
-    } else await verifyOtp(challenge.phone, otp);
+      const localChannels = ["test", "development", "whatsapp"];
+      if (!localChannels.includes(challenge.channel) ||
+          (challenge.channel === "test" && !testPhoneEnabled(challenge.phone)) ||
+          (challenge.channel === "development" && process.env.NODE_ENV === "production") ||
+          !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) {
+        throw new HttpError(400, "That code is incorrect.");
+      }
+    } else if (challenge.channel === "sms" || !challenge.channel) {
+      await verifyOtp(challenge.phone, otp);
+    } else {
+      throw new HttpError(400, "That code is incorrect.");
+    }
     const consumed = await LoginChallenge.deleteOne({ _id: challenge._id });
     if (consumed.deletedCount !== 1) throw new HttpError(409, "That code has already been used. Request a new one.");
     await Customer.updateOne({ phone: challenge.phone }, { $setOnInsert: { phone: challenge.phone } }, { upsert: true });
