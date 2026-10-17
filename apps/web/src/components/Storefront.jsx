@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { products as initialProducts, unitPrice } from "@cake-galaxy/catalog";
+import { discountAmount, products as initialProducts, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -136,9 +136,11 @@ export function StoreProvider({ children }) {
     try { sessionStorage.setItem(checkoutKey, JSON.stringify(details)); } catch {}
   }
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = cart.reduce((sum, item) => sum + unitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const subtotalBeforeDiscount = cart.reduce((sum, item) => sum + regularUnitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const discountTotal = cart.reduce((sum, item) => sum + discountAmount(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const subtotal = subtotalBeforeDiscount - discountTotal;
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
