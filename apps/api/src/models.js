@@ -13,6 +13,7 @@ const challengeSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   codeHash: String,
   testMode: { type: Boolean, default: false },
+  channel: { type: String, enum: ["test", "development", "whatsapp", "sms"], default: "sms" },
   attempts: { type: Number, default: 0 },
   expiresAt: { type: Date, required: true, index: { expires: 0 } }
 }, options);
