@@ -21,8 +21,14 @@ export function issueInvoice(order, response) {
   if (order.gst?.gstin) pdf.text("Customer GSTIN: " + order.gst.gstin);
   pdf.text(order.gst?.billingAddress || [order.address.line1, order.address.line2, order.address.city, order.address.pincode].filter(Boolean).join(", "));
   pdf.moveDown().text("Items").moveDown(.5);
-  for (const item of order.items) pdf.text(item.quantity + " × " + item.name + " (" + item.size + " " + (item.unit || "kg") + ") — " + money(item.lineTotal));
-  pdf.moveDown().text("Items subtotal: " + money(order.subtotal)).text("Delivery: " + money(order.deliveryFee)).text("GST: " + money(order.tax));
+  for (const item of order.items) {
+    const label = item.quantity + " × " + item.name + " (" + item.size + " " + (item.unit || "kg") + ")";
+    pdf.text(label + " — " + money(item.lineTotal));
+    if (item.discountPerUnit > 0) pdf.text("   10% cake discount: -" + money(item.discountPerUnit * item.quantity));
+  }
+  const listSubtotal = order.items.reduce((sum, item) => sum + (item.originalUnitPrice ?? item.unitPrice) * item.quantity, 0);
+  pdf.moveDown().text("Items list price: " + money(listSubtotal));
+  pdf.text("Items subtotal after discount: " + money(order.subtotal)).text("Delivery: " + money(order.deliveryFee)).text("GST: " + money(order.tax));
   pdf.moveDown().fontSize(13).text("Total paid: " + money(order.amount));
   pdf.end();
   return true;
