@@ -31,16 +31,45 @@ export async function sendOtp(phone) {
   if (process.env.DEV_OTP_ENABLED === "true" && process.env.NODE_ENV !== "production") {
     const code = String(randomInt(100000, 1000000));
     process.stdout.write("Development OTP for +91" + phone + ": " + code + "\n");
-    return { code };
+    return { code, channel: "development" };
   }
-  if (!process.env.MSG91_AUTH_KEY || !process.env.MSG91_OTP_TEMPLATE_ID) throw new HttpError(503, "SMS verification is not configured yet.");
-  const query = new URLSearchParams({ template_id: process.env.MSG91_OTP_TEMPLATE_ID, mobile: "91" + phone });
+
+  const {
+    MSG91_AUTH_KEY: key,
+    MSG91_WHATSAPP_NUMBER: number,
+    MSG91_WHATSAPP_OTP_TEMPLATE_NAME: template
+  } = process.env;
+  if (!key || !number || !template) throw new HttpError(503, "WhatsApp OTP is not configured yet.");
+
+  const code = String(randomInt(100000, 1000000));
   let response;
-  try { response = await fetch("https://control.msg91.com/api/v5/otp?" + query, { headers: { authkey: process.env.MSG91_AUTH_KEY }, signal: AbortSignal.timeout(15000) }); }
-  catch { throw new HttpError(502, "Couldn't send a verification code. Please try again."); }
+  try {
+    response = await fetch("https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/", {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+      headers: { authkey: key, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        integrated_number: number,
+        content_type: "template",
+        payload: {
+          to_and_components: [{
+            to: ["91" + phone],
+            components: { body_1: { type: "text", value: code } }
+          }],
+          template: {
+            name: template,
+            language: { code: process.env.MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en" }
+          }
+        }
+      })
+    });
+  } catch {
+    throw new HttpError(502, "Couldn't send a WhatsApp verification code. Please try again.");
+  }
+
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.type !== "success") throw new HttpError(502, "Couldn't send a verification code. Please try again.");
-  return { code: null };
+  if (!response.ok || data.type === "error" || data.error) throw new HttpError(502, "Couldn't send a WhatsApp verification code. Please try again.");
+  return { code, channel: "whatsapp" };
 }
 
 export async function verifyOtp(phone, otp) {

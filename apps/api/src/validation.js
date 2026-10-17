@@ -1,4 +1,4 @@
-import { addons } from "@cake-galaxy/catalog";
+import { addons, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 import { timingSafeEqual } from "node:crypto";
 
 export class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -29,9 +29,12 @@ export function priceItem(item, product) {
   const flavour = text(item.flavour, 60);
   if (flavour !== product.flavour && !(product.photo && ["Chocolate", "Butterscotch"].includes(flavour))) throw new HttpError(400, "Choose a flavour available for this cake.");
   const message = item.message ? text(item.message, 30) : "";
-  const unit = Math.round(product.price * Number(item.size) / product.weights[0]) + (item.eggless ? 5000 : 0) + addons.filter((addon) => requestedAddons.includes(addon.id)).reduce((sum, addon) => sum + addon.price, 0);
+  const pricedItem = { ...item, size: Number(item.size), eggless: item.eggless === true, addons: requestedAddons };
+  const originalUnitPrice = regularUnitPrice(pricedItem, product);
+  const discountPerUnit = discountAmount(pricedItem, product);
+  const unit = unitPrice(pricedItem, product);
   if (!Number.isSafeInteger(unit) || unit <= 0) throw new HttpError(400, "This cake price cannot be confirmed.");
-  return { productId: product.id, name: product.name, size: Number(item.size), unit: product.unit, quantity: item.quantity, flavour, eggless: item.eggless === true, message, addons: requestedAddons, uploadId: item.uploadId || null, unitPrice: unit, lineTotal: unit * item.quantity };
+  return { productId: product.id, name: product.name, size: Number(item.size), unit: product.unit, quantity: item.quantity, flavour, eggless: item.eggless === true, message, addons: requestedAddons, uploadId: item.uploadId || null, originalUnitPrice, discountPerUnit, discountPercent: discountPerUnit > 0 ? 10 : 0, unitPrice: unit, lineTotal: unit * item.quantity };
 }
 
 export function safeCompare(expected, actual) {

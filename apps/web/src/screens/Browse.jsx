@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { addons, categories, images, money, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
+import { addons, categories, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
@@ -55,6 +55,10 @@ export function Product() {
   const [phone, setPhone] = useState("");
   const key = product.id;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
+  const selectedItem = { productId: product.id, size: Number(size), eggless, addons: extras };
+  const selectedPrice = unitPrice(selectedItem, product);
+  const originalPrice = regularUnitPrice(selectedItem, product);
+  const saving = discountAmount(selectedItem, product);
 
   async function submit(event) {
     event.preventDefault();
@@ -77,7 +81,7 @@ export function Product() {
     finally { setBusy(false); }
   }
 
-  return <div className="wrap page" key={key}><div className="breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/shop">Cakes</Link><span>/</span>{product.name}</div><div className="detail-grid"><div className="detail-photo"><img src={product.image} alt={product.name}/><p className="photo-footnote">Every cake is finished by hand. Colours and details may vary.</p></div><div className="detail-panel"><span className="overline">{product.badge}</span><h1>{product.name}</h1><span className="detail-price">{money(unitPrice({ productId: product.id, size, eggless, addons: extras }, product))}</span><p className="subtle">Starting from {sizeLabel(product)}</p><p className="detail-description">{product.description}</p><form onSubmit={submit}><div className="field-group"><span className="field-label">Choose {product.unit === "pieces" ? "box size" : "weight"}</span><div className="option-row">{product.weights.map((weight) => <label key={weight} className="choice"><input type="radio" name="size" checked={Number(size) === weight} onChange={() => setSize(weight)}/><span>{sizeLabel(product, weight)}</span></label>)}</div><label className="check-label"><input type="checkbox" checked={eggless} onChange={(event) => setEggless(event.target.checked)}/>Make it eggless <span className="subtle">+{money(5000)}</span></label></div>
+  return <div className="wrap page" key={key}><div className="breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/shop">Cakes</Link><span>/</span>{product.name}</div><div className="detail-grid"><div className="detail-photo"><img src={product.image} alt={product.name}/><p className="photo-footnote">Every cake is finished by hand. Colours and details may vary.</p></div><div className="detail-panel"><span className="overline">{product.badge}</span><h1>{product.name}</h1><div className="detail-price-line"><span className="detail-price">{money(selectedPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}</div>{saving > 0 && <p className="subtle discount-copy">10% off cakes over 1 kg · Save {money(saving)} per cake.</p>}<p className="subtle">Starting from {sizeLabel(product)}</p><p className="detail-description">{product.description}</p><form onSubmit={submit}><div className="field-group"><span className="field-label">Choose {product.unit === "pieces" ? "box size" : "weight"}</span><div className="option-row">{product.weights.map((weight) => <label key={weight} className="choice"><input type="radio" name="size" checked={Number(size) === weight} onChange={() => setSize(weight)}/><span>{sizeLabel(product, weight)}</span></label>)}</div><label className="check-label"><input type="checkbox" checked={eggless} onChange={(event) => setEggless(event.target.checked)}/>Make it eggless <span className="subtle">+{money(egglessSurcharge({ size: Number(size), eggless: true }, product))}</span></label></div>
       <div className="field-group"><label htmlFor="cake-flavour">Flavour</label><select id="cake-flavour" value={flavour} onChange={(event) => setFlavour(event.target.value)}>{[...new Set([product.flavour, ...(product.photo ? ["Chocolate", "Butterscotch"] : [])])].map((name) => <option key={name}>{name}</option>)}</select></div>
       <div className="field-group"><label htmlFor="cake-message">Message on cake (optional)</label><input id="cake-message" maxLength={30} placeholder="Happy Birthday, Anu!" value={message} onChange={(event) => setMessage(event.target.value)}/></div>
       {product.photo && <div className="field-group"><label htmlFor="photo-upload">Add your photograph (JPG or PNG, up to 10 MB)</label><input id="photo-upload" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }} required/></div>}
