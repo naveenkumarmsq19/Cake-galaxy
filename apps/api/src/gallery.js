@@ -5,8 +5,15 @@ import mongoose from "mongoose";
 import { createHash, randomUUID } from "node:crypto";
 import { Product, ProductImage } from "./models.js";
 import { HttpError, text } from "./validation.js";
+import { extractGalleryZip } from "./galleryZip.js";
 
 const maxUploadBytes = 2_000_000;
+export const uploadableProductIds = new Set([
+  "menu-almond-alphonso-truffle", "menu-black-current-truffle", "menu-black-forest",
+  "menu-blueberry-truffle", "menu-blueberry-cheese-cake", "menu-choco-nuts",
+  "menu-chocolate-chip", "menu-choco-almond", "menu-chocolate-delight-cake",
+  "menu-death-by-chocolate"
+]);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 12, fileSize: maxUploadBytes, fields: 2, parts: 14 },
@@ -46,6 +53,37 @@ async function respondImage(req, res, canViewInactive) {
   }).pipe(res);
 }
 
+async function storeProductPhotos(id, files) {
+  const product = await Product.findOne({ id, deletedAt: null }).lean();
+  if (!product) throw new HttpError(404, "Product not found.");
+  if ((product.images || []).length + files.length > 16) throw new HttpError(400, "Maximum 16 images per product.");
+  const results = [];
+  for (const file of req.files) {
+    const bytes = await compressedWebp(file.buffer);
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    const already = await ProductImage.findOne({ productId: id, hash }).lean();
+    if (already) { results.push(imageUrl(already.id)); continue; }
+    const imageId = randomUUID();
+    const stream = bucket().openUploadStream(imageId + ".webp", { metadata: { productId: id } });
+    await new Promise((resolve, reject) => {
+      stream.on("finish", resolve);
+      stream.on("error", reject);
+      stream.end(bytes);
+    });
+    try { await ProductImage.create({ id: imageId, productId: id, fileId: stream.id, hash, length: bytes.length }); }
+    catch (error) { await bucket().delete(stream.id).catch(() => {}); throw error; }
+    results.push(imageUrl(imageId));
+  }
+  const current = await Product.findOne({ id, deletedAt: null }).lean();
+  if (!current) throw new HttpError(409, "Product was changed while uploading.");
+  const images = [...new Set([...(current.images || []), ...results])];
+  if (images.length > 16) throw new HttpError(400, "Maximum 16 images per product.");
+  // Upload never automatically publishes a cake. Only merchant-reviewed product selection does.
+  const saved = await Product.findOneAndUpdate({ id, deletedAt: null },
+    { $set: { images, image: images[0] } }, { new: true, runValidators: true });
+  return { images: saved.images, sizes: results.length };
+}
+
 export function createProductGalleryRouter() {
   const router = Router();
   router.get("/:imageId", async (req, res) => respondImage(req, res, false));
@@ -62,31 +100,8 @@ export function registerAdminGalleryRoutes(router, requireSuper) {
     if (!product) throw new HttpError(404, "Product not found.");
     if (!req.files?.length) throw new HttpError(400, "Choose JPG, PNG or WebP photos (2 MB maximum per image).");
     if ((product.images || []).length + req.files.length > 16) throw new HttpError(400, "Maximum 16 images per product.");
-    const results = [];
-    for (const file of req.files) {
-      const bytes = await compressedWebp(file.buffer);
-      const hash = createHash("sha256").update(bytes).digest("hex");
-      const already = await ProductImage.findOne({ productId: id, hash }).lean();
-      if (already) { results.push(imageUrl(already.id)); continue; }
-      const imageId = randomUUID();
-      const stream = bucket().openUploadStream(imageId + ".webp", { metadata: { productId: id } });
-      await new Promise((resolve, reject) => {
-        stream.on("finish", resolve);
-        stream.on("error", reject);
-        stream.end(bytes);
-      });
-      try { await ProductImage.create({ id: imageId, productId: id, fileId: stream.id, hash, length: bytes.length }); }
-      catch (error) { await bucket().delete(stream.id).catch(() => {}); throw error; }
-      results.push(imageUrl(imageId));
-    }
-    const current = await Product.findOne({ id, deletedAt: null }).lean();
-    if (!current) throw new HttpError(409, "Product was changed while uploading.");
-    const images = [...new Set([...(current.images || []), ...results])];
-    if (images.length > 16) throw new HttpError(400, "Maximum 16 images per product.");
-    // Upload never automatically publishes a cake. Only merchant-reviewed product selection does.
-    const saved = await Product.findOneAndUpdate({ id, deletedAt: null },
-      { $set: { images, image: images[0] } }, { new: true, runValidators: true });
-    res.status(201).json({ images: saved.images, sizes: results.length });
+    const saved = await storeProductPhotos(id, req.files);
+    res.status(201).json(saved);
   });
 
   router.put("/products/:id/images/order", requireSuper, async (req, res) => {
@@ -117,15 +132,28 @@ export function registerAdminGalleryRoutes(router, requireSuper) {
     res.json({ images: remaining });
   });
 
+  const archiveUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: 32_000_000 } });
+  router.post("/catalogue/import-gallery-bundle", requireSuper, archiveUpload.single("bundle"), async (req, res) => {
+    if (!req.file?.buffer) throw new HttpError(400, "Choose the prepared Cake Galaxy gallery ZIP.");
+    const groups = extractGalleryZip(req.file.buffer, uploadableProductIds);
+    const imported = [];
+    for (const [id, files] of groups) {
+      const result = await storeProductPhotos(id, files);
+      imported.push({ id, images: result.images.length });
+    }
+    // Only switch public visibility AFTER validated photos have been saved.
+    const disabled = await Product.updateMany({ active: true }, { $set: { active: false } });
+    const enabled = await Product.updateMany({ id: { $in: [...groups.keys()] }, menuImported: true,
+      deletedAt: null, "images.0": { $exists: true } }, { $set: { active: true } });
+    res.json({ imported, enabled: enabled.modifiedCount, disabled: disabled.modifiedCount, skippedUnmatched: true });
+  });
+
   router.post("/catalogue/publish-uploaded-only", requireSuper, async (_req, res) => {
     // Publication must never expose old seeded placeholders or unmatched menu entries.
     const disabled = await Product.updateMany({ active: true }, { $set: { active: false } });
     const enabled = await Product.updateMany({
       id: { $in: [
-        "menu-almond-alphonso-truffle", "menu-black-current-truffle", "menu-black-forest",
-        "menu-blueberry-truffle", "menu-blueberry-cheese-cake", "menu-choco-nuts",
-        "menu-chocolate-chip", "menu-choco-almond", "menu-chocolate-delight-cake",
-        "menu-death-by-chocolate"
+        ...uploadableProductIds
       ] },
       menuImported: true, deletedAt: null, "images.0": { $exists: true }
     }, { $set: { active: true } });

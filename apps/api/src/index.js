@@ -27,9 +27,8 @@ async function start() {
   await Product.bulkWrite(menuProducts.map(({ id, menuCategory }) => ({
     updateOne: { filter: { id, menuCategory: { $exists: false } }, update: { $set: { menuCategory } } }
   })));
-  // Existing seed/placeholder products must not be offered when user has requested uploaded photos only.
-  const hidden = await Product.updateMany({ active: true, "images.0": { $exists: false } }, { $set: { active: false } });
-  if (hidden.modifiedCount) process.stdout.write("Disabled " + hidden.modifiedCount + " products without uploaded photo galleries.\n");
+  // Existing active products remain unchanged until the merchant imports and publishes the gallery bundle.
+  // Publication then disables the old placeholders and enables only selected photo-backed cakes.
 
   const initialBranches = [
     { code: "BR01", name: "Peenya", address: "Laggere Main Rd, Preethi Nagar, MEI Colony, Phase 3, Peenya, Bengaluru, Karnataka 560058", basePincode: "560058" },
