@@ -261,12 +261,23 @@ export function createAdminRouter() {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new HttpError(400, "Use lowercase letters, numbers and dashes for product ID.");
     const changes = productChanges(req.body);
     if (!changes.name || !changes.flavour || !changes.category?.length || !changes.weights?.length || !changes.price || !changes.unit || !changes.image) throw new HttpError(400, "Add name, flavour, category, size, price, unit and image before saving.");
-    const product = await Product.create({ ...changes, id, active: false });
+    const product = await Product.create({ ...changes, id, active: false, deletedAt: null });
     res.status(201).json({ product });
   });
   router.patch("/products/:id", requireSuper, async (req, res) => {
-    const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80) }, { $set: productChanges(req.body) }, { new: true, runValidators: true });
+    const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: null }, { $set: productChanges(req.body) }, { new: true, runValidators: true });
     if (!product) throw new HttpError(404, "Product not found.");
+    res.json({ product });
+  });
+  router.delete("/products/:id", requireSuper, async (req, res) => {
+    // Reversible delete: avoids resurrecting seeded items and preserves order history.
+    const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: null }, { $set: { active: false, deletedAt: new Date() } }, { new: true });
+    if (!product) throw new HttpError(404, "Product not found or already deleted.");
+    res.json({ product, archived: true });
+  });
+  router.post("/products/:id/restore", requireSuper, async (req, res) => {
+    const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: { $ne: null } }, { $set: { deletedAt: null, active: false } }, { new: true });
+    if (!product) throw new HttpError(404, "Deleted product not found.");
     res.json({ product });
   });
   return router;
@@ -291,6 +302,19 @@ function productChanges(body) {
     changes.weights = body.weights;
   }
   if (body?.price !== undefined) changes.price = money(body.price);
+  if (body?.leadDays !== undefined) {
+    if (!Number.isSafeInteger(body.leadDays) || body.leadDays < 0 || body.leadDays > 31) throw new HttpError(400, "Preparation lead days must be from 0 to 31.");
+    changes.leadDays = body.leadDays;
+  }
+  if (body?.variantLabels !== undefined) {
+    if (!body.variantLabels || typeof body.variantLabels !== "object" || Array.isArray(body.variantLabels) || Object.keys(body.variantLabels).length > 12) throw new HttpError(400, "Enter up to 12 valid option labels.");
+    const labels = {};
+    for (const [key, value] of Object.entries(body.variantLabels)) {
+      if (!/^w_[0-9]+(?:_[0-9]+)?$/.test(key)) throw new HttpError(400, "Invalid option code.");
+      labels[key] = text(value, 30);
+    }
+    changes.variantLabels = labels;
+  }
   if (body?.variantPrices !== undefined) {
     if (!body.variantPrices || typeof body.variantPrices !== "object" || Array.isArray(body.variantPrices) || Object.keys(body.variantPrices).length > 12) throw new HttpError(400, "Enter up to 12 valid size prices.");
     const values = {};
@@ -300,6 +324,8 @@ function productChanges(body) {
     }
     changes.variantPrices = values;
   }
+  if (changes.unit && !["kg", "pieces", "menu"].includes(changes.unit)) throw new HttpError(400, "Choose kg, pieces, or menu option units.");
+  if (changes.unit === "menu" && body?.eggless === true) throw new HttpError(400, "Menu items need a verified weight before eggless charges can be enabled.");
   for (const field of ["active", "eggless", "photo"]) if (body?.[field] !== undefined) {
     if (typeof body[field] !== "boolean") throw new HttpError(400, "Invalid " + field + " flag.");
     changes[field] = body[field];

@@ -1,3 +1,5 @@
+export { menuSections, menuProducts, menuExtras } from "./menu.js";
+
 export const images = {
   banner: "/images/celebration-banner.webp",
   chocolate: "/images/chocolate.jpg",
@@ -36,7 +38,9 @@ export const addons = [
 
 export const getProduct = (id, list = products) => list.find((product) => product.id === id);
 export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
-export const sizeLabel = (product, size = product.weights[0]) => size + (product.unit === "pieces" ? " pieces" : " kg");
+export const sizeLabel = (product, size = product.weights[0]) => product.unit === "menu"
+  ? (product.variantLabels?.get?.(weightKey(size)) ?? product.variantLabels?.[weightKey(size)] ?? "Option " + size)
+  : size + (product.unit === "pieces" ? " pieces" : " kg");
 
 export function egglessSurcharge(item, product = getProduct(item.productId)) {
   if (!product || item?.eggless !== true) return 0;
@@ -49,7 +53,9 @@ export function catalogueBasePrice(item, product = getProduct(item.productId)) {
   if (!product || !product.weights?.includes(Number(item.size))) return 0;
   const key = weightKey(item.size);
   const configured = product.variantPrices?.get?.(key) ?? product.variantPrices?.[key];
-  return Number.isSafeInteger(configured) && configured > 0 ? configured : Math.round(product.price * Number(item.size) / product.weights[0]);
+  if (Number.isSafeInteger(configured) && configured > 0) return configured;
+  if (product.unit === "menu") return 0; // Never invent proportional prices for pastry/small/medium.
+  return Math.round(product.price * Number(item.size) / product.weights[0]);
 }
 
 export function regularUnitPrice(item, product = getProduct(item.productId)) {
