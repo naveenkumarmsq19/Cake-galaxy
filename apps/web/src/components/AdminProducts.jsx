@@ -37,7 +37,7 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, e
     if (filter === "live" && (!p.active || p.deletedAt)) return false;
     if (filter === "deleted" && !p.deletedAt) return false;
     if (filter === "menu" && (!p.menuImported || p.deletedAt)) return false;
-    if (filter !== "deleted" && filter !== "all" && filter !== "menu" && p.deletedAt) return false;
+    if (filter !== "deleted" && p.deletedAt) return false;
     return (p.name + " " + p.id + " " + (p.category || []).join(" ")).toLowerCase().includes(search.toLowerCase());
   }), [products, filter, search]);
   const selectProduct = p => { setEditing(p.id); setDraft(fromProduct(p)); };
