@@ -552,6 +552,7 @@ export const menuProducts = menuSections.flatMap((group) => group.items.map((ite
     variantLabels: Object.fromEntries(options.map(([code, label]) => ["w_" + code, label])),
     weights: options.map(([code]) => code),
     unit: "menu",
+    menuCategory: group.title,
     category: ["Menu", /Chocolate|Choco|Cocoa|Nutella|Ferraro|Mocha/i.test(item.name + " " + group.title) ? "Chocolate" : "Birthday"],
     flavour: item.name.replace(/\s*\(New\)/i, "").trim(),
     badge: "Menu selection",
