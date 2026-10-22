@@ -1,0 +1,11 @@
+# Product galleries – October 2026
+
+The 12 uploaded user ZIP archives were inspected and 79 PNG photos converted into WebP (largest 367406 bytes, all below 2,000,000 bytes). Source HEIC entries were omitted because the conversion tools cannot decode them; the PNG originals provided usable alternatives.
+
+Use the conversation download **Cake_Galaxy_12_Product_Galleries_Under_2MB.zip**. The file is NOT available to GitHub or Render automatically. To upload the actual bytes into the live database, an authenticated Super Admin must use https://cakegalaxy.in/admin → Products → **Import all 12 prepared cake galleries in one step**, select this ZIP and confirm. The API validates 10 matched product folders, stores photos in MongoDB GridFS, disables other catalogue entries, then publishes only the matching imported items with images. Two unmatched folders (Choco Pista, Choco Dates) are excluded until exact menu names/prices are supplied. Never claim the live images were uploaded just from the GitHub deployment.
+
+Individual future products: Select a saved product in Admin → Products and select 1–12 photos. Browser converts JPG, PNG or WebP via canvas to <2,000,000 bytes per photo; server enforces <2,000,000 byte request file limit and re-encodes to WebP in GridFS. Each product accepts 16 photos maximum. Images support ordered cover, reorder and remove actions. The product detail page has a scroll-snap touch gallery and thumbnail strip. Admin authenticated previews are available for inactive products.
+
+Map of supplied ZIP filenames: Almond Alphonso → Almond Alphonso Truffle; Black_currant → Black Current Truffle; BlackForest → Black Forest; Blueberry → Blueberry Truffle (verify); Blueberry_cheesecake → Blueberry Cheese Cake; Chaco_nut → Choco Nuts; Chockchips → Chocolate Chip; Choco_Almond → Choco Almond; Choco_Delight → Chocolate Delight Cake; DBC → Death by Chocolate. Choco Pista and Choco Dates have no exact listed cake/prices in the PDF; do not silently apply Pista Truffle or Dates Cake pricing.
+
+Publishing 10 products assumes the matching printed-menu pastries/small/medium price entries are approved. Small/medium kilogram weights remain undefined and eggless is disabled. Existing orders and archived products remain intact. Import is idempotent for identical WebP files, with server-side product-photo hashing.
