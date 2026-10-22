@@ -540,13 +540,13 @@ export const menuExtras = [
   { label: "Eggless cake", detail: "₹70 extra per kg (confirm actual cake weight)" }
 ];
 
-const slug = (value) => value.toLowerCase().replace(/\\(new\\)/gi, "").replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slug = (value) => value.toLowerCase().replace(/\(new\)/gi, "").replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const imageFor = (group) => /Chocolate|Nuts|Dry Fruit|Forest/i.test(group) ? "/images/chocolate.jpg" : /Velvet|Fruit|Cheese/i.test(group) ? "/images/berry.jpg" : "/images/celebration.jpg";
 export const menuProducts = menuSections.flatMap((group) => group.items.map((item) => {
   const options = [[1, "Pastry", item.pastry], [2, "Small", item.small], [3, "Medium", item.medium]].filter(([, , cost]) => cost !== null);
   return {
     id: "menu-" + slug(item.name),
-    name: item.name.replace(/\\s*\\(New\\)/i, "").trim(),
+    name: item.name.replace(/\s*\(New\)/i, "").trim(),
     price: options[0][2] * 100,
     variantPrices: Object.fromEntries(options.map(([code, , cost]) => ["w_" + code, cost * 100])),
     variantLabels: Object.fromEntries(options.map(([code, label]) => ["w_" + code, label])),

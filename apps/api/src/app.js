@@ -126,7 +126,7 @@ export function createApp() {
     res.status(databaseReady ? 200 : 503).json({ ok: databaseReady, database: databaseReady ? "connected" : "unavailable" });
   });
   app.get("/api/catalog", async (_req, res) => {
-    const catalog = await Product.find({ active: true }, { _id: 0, __v: 0, active: 0 }).lean();
+    const catalog = await Product.find({ active: true, deletedAt: null }, { _id: 0, __v: 0, active: 0 }).lean();
     res.json({ products: catalog, addons });
   });
   app.get("/api/delivery", async (req, res) => {
@@ -255,7 +255,7 @@ export function createApp() {
     const delivery = { date: deliveryDate(body.delivery?.date), slot: text(body.delivery?.slot, 40) };
     validateDeliverySlot(delivery.date, delivery.slot, new Date(), Number(process.env.MIN_PREP_MINUTES || "0"));
     const productIds = body.items.map((item) => text(item.productId, 80));
-    const available = await Product.find({ id: { $in: productIds }, active: true }).lean();
+    const available = await Product.find({ id: { $in: productIds }, active: true, deletedAt: null }).lean();
     const byId = new Map(available.map((product) => [product.id, product]));
     const items = [];
     for (const item of body.items) {
