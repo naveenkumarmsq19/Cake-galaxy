@@ -58,7 +58,7 @@ async function storeProductPhotos(id, files) {
   if (!product) throw new HttpError(404, "Product not found.");
   if ((product.images || []).length + files.length > 16) throw new HttpError(400, "Maximum 16 images per product.");
   const results = [];
-  for (const file of req.files) {
+  for (const file of files) {
     const bytes = await compressedWebp(file.buffer);
     const hash = createHash("sha256").update(bytes).digest("hex");
     const already = await ProductImage.findOne({ productId: id, hash }).lean();

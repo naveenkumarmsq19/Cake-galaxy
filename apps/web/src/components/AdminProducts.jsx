@@ -49,7 +49,7 @@ async function toSmallWebp(file) {
 }
 const adminPreview = url => url.replace(/^\/api\/product-images\//,"/api/admin/product-images/");
 
-export default function AdminProducts({ products, isSuperAdmin, busy, request, uploadImages, execute }) {
+export default function AdminProducts({ products, isSuperAdmin, busy, request, uploadImages, importGalleryBundle, execute }) {
   const [draft, setDraft] = useState(empty);
   const [editing, setEditing] = useState("");
   const [search, setSearch] = useState("");
@@ -180,6 +180,19 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, u
         </label>
         {uploadProgress && <p role="status" className="admin-photo-note">{uploadProgress}</p>}
       </>}
+      <div className="admin-gallery-wrap">
+        <h3>Import all 12 prepared cake galleries in one step</h3>
+        <p className="admin-photo-note">Upload the compressed Cake Galaxy ZIP bundle (with menu-ID folders). The server validates each image, stores up to 16 per product, and publishes only the 10 matching cakes. Choco Pista and Choco Dates stay excluded until their menu names and prices are confirmed. All other products become disabled after the ZIP import succeeds.</p>
+        <label className="admin-gallery-picker">Choose prepared ZIP bundle (up to 32 MB)
+          <input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>{
+            const file=e.target.files?.[0];e.target.value="";
+            if(file && window.confirm("Import all recognized galleries and publish ONLY those products? Existing non-matching products will be disabled.")) execute(async()=>{
+              const result=await importGalleryBundle(file);
+              if(!result.imported?.length) throw new Error("No known cake images were imported.");
+            },"Gallery ZIP imported; matching cakes enabled and others disabled");
+          }}/>
+        </label>
+      </div>
       <div className="admin-gallery-wrap">
         <h3>Publish only the supplied product photos</h3>
         <p className="admin-photo-note">This disables every other product and enables only the 10 PDF-matched cakes from the current ZIP batch that already have uploaded galleries. Choco Pista and Choco Dates remain on hold until their product identities/prices are confirmed.</p>
