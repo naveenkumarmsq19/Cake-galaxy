@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
-import { products } from "@cake-galaxy/catalog";
+import { products, menuProducts } from "@cake-galaxy/catalog";
 import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
 import { bootstrapSuperAdmin, ensureBaseServiceAreas } from "./bootstrap.js";
@@ -20,6 +20,10 @@ async function start() {
     }
   })));
   if (catalogueSeed.upsertedCount) process.stdout.write("Initial sample catalogue added. Confirm product details and prices before enabling payments.\n");
+  const menuSeed = await Product.bulkWrite(menuProducts.map((product) => ({
+    updateOne: { filter: { id: product.id }, update: { $setOnInsert: product }, upsert: true }
+  })));
+  if (menuSeed.upsertedCount) process.stdout.write("Imported " + menuSeed.upsertedCount + " printed-menu products as INACTIVE admin drafts; no existing edits were overwritten.\n");
 
   const initialBranches = [
     { code: "BR01", name: "Peenya", address: "Laggere Main Rd, Preethi Nagar, MEI Colony, Phase 3, Peenya, Bengaluru, Karnataka 560058", basePincode: "560058" },
