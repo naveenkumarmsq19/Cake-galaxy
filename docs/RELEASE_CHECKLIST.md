@@ -9,7 +9,7 @@ This branch extends the WhatsApp OTP and weight-discount feature branch and fixe
 - Check `/api/ready` returns HTTP 200 with MongoDB connected; `/api/health` is liveness-only.
 
 ## Provider and operational prerequisites (not safely auto-configurable)
-- Approve and publish merchant-specific terms, privacy, cancellation and refund policies; leave `POLICIES_APPROVED=false` until then.
+- Review the detailed policy draft pages and `docs/POLICIES_TO_APPROVE.md`; populate the public business/grievance/FSSAI details and obtain legal review. Leave `POLICIES_APPROVED=false` until merchant-approved.
 - Approve product images, catalogue, exact variant prices and tax details before setting `CATALOG_APPROVED=true`.
 - Configure verified MSG91 WhatsApp OTP and notification templates. Confirm recipient delivery in provider sandbox.
 - Configure Razorpay test keys and webhook signing secret, test captured/failed/duplicate and delayed callbacks, retries and refunds before live keys.

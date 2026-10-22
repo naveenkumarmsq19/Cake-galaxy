@@ -54,7 +54,7 @@ This runs API validation/signature/HTTP tests and the production Next.js build. 
 6. Configure Razorpay keys and a webhook secret. Test captured, pending, failed and duplicate callbacks in the provider test environment.
 7. Set `CATALOG_APPROVED=true` and `POLICIES_APPROVED=true` only after the approved catalogue and policies are in place. Checkout remains disabled without these approvals, valid GST settings and Razorpay keys.
 
-See `apps/api/.env.example` for every variable. `.env` files are ignored by Git.
+See `apps/api/.env.example` for server variables and `apps/web/.env.example` for public build-time business identity and support contact values. Policy draft pages and launch approvals are documented in `docs/POLICIES_TO_APPROVE.md`. Keep `POLICIES_APPROVED=false` until operator and legal review is complete. `.env` files are ignored by Git.
 
 ## Deployment
 
