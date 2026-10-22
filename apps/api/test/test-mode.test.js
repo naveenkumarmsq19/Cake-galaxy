@@ -75,7 +75,7 @@ test("test COD bypasses Razorpay, keeps branch assignment, and cannot be used by
   try {
     await withServer(async (base) => {
       const headers = { Cookie: "cg_session=" + "c".repeat(64), "X-CSRF-Token": "csrf-test", "Content-Type": "application/json" };
-      const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 86400000));
       const body = { idempotencyKey: randomUUID(), preferredMethod: "test_cod", items: [{ productId: "chocolate-truffle", size: 0.5, quantity: 1, flavour: "Chocolate", eggless: false }], sender: { name: "Tester", phone: "9876543210" }, address: { name: "Friend", phone: "9123456789", line1: "1 Main Road", city: "Bengaluru", pincode: "560073", whatsapp: true }, delivery: { date, slot: "10 AM – 1 PM" } };
       const config = await (await original.fetch(base + "/api/checkout/config", { headers })).json();
       assert.equal(config.testCodEnabled, true);
