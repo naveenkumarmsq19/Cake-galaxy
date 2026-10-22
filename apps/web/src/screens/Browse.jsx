@@ -41,11 +41,11 @@ export function Product() {
   const params = useSearchParams();
   const router = useRouter();
   const { catalog, session, api, addItem, pincode, checkDelivery } = useStore();
-  const product = catalog.find((item) => item.id === params.get("id")) || catalog[0];
+  const product = catalog.find((item) => item.id === params.get("id"));
   const [quantity, setQuantity] = useState(1);
-  const [size, setSize] = useState(product.weights[0]);
+  const [size, setSize] = useState(product?.weights?.[0] ?? 0.5);
   const [eggless, setEggless] = useState(false);
-  const [flavour, setFlavour] = useState(product.flavour);
+  const [flavour, setFlavour] = useState(product?.flavour || "");
   const [message, setMessage] = useState("");
   const [extras, setExtras] = useState([]);
   const [file, setFile] = useState(null);
@@ -53,7 +53,7 @@ export function Product() {
   const [busy, setBusy] = useState(false);
   const [deliveryPin, setDeliveryPin] = useState(pincode);
   const [phone, setPhone] = useState("");
-  const key = product.id;
+  const key = product?.id;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
   const selectedItem = { productId: product.id, size: Number(size), eggless, addons: extras };
   const selectedPrice = unitPrice(selectedItem, product);

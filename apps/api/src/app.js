@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { addons } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
-import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare } from "./validation.js";
+import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { invoiceConfigured, issueInvoice } from "./invoice.js";
 
@@ -19,7 +19,7 @@ const cookieName = "cg_session";
 const hours = 60 * 60 * 1000;
 const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
 const hash = (value) => createHash("sha256").update(value).digest("hex");
-const merchantReady = () => razorpayConfigured() && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
+const merchantReady = () => razorpayConfigured() && !!process.env.RAZORPAY_WEBHOOK_SECRET && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
 const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
 const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
@@ -96,6 +96,10 @@ export function createApp() {
   app.use("/api/admin", createAdminRouter());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/ready", (_req, res) => {
+    const databaseReady = mongoose.connection.readyState === 1;
+    res.status(databaseReady ? 200 : 503).json({ ok: databaseReady, database: databaseReady ? "connected" : "unavailable" });
+  });
   app.get("/api/catalog", async (_req, res) => {
     const catalog = await Product.find({ active: true }, { _id: 0, __v: 0, active: 0 }).lean();
     res.json({ products: catalog, addons });
@@ -223,7 +227,7 @@ export function createApp() {
     if (!assignment) throw new HttpError(400, "Delivery isn't available at that pincode.");
     const { area, branch } = assignment;
     const delivery = { date: deliveryDate(body.delivery?.date), slot: text(body.delivery?.slot, 40) };
-    if (!slots.includes(delivery.slot)) throw new HttpError(400, "Choose an available delivery time.");
+    validateDeliverySlot(delivery.date, delivery.slot, new Date(), Number(process.env.MIN_PREP_MINUTES || "0"));
     const productIds = body.items.map((item) => text(item.productId, 80));
     const available = await Product.find({ id: { $in: productIds }, active: true }).lean();
     const byId = new Map(available.map((product) => [product.id, product]));

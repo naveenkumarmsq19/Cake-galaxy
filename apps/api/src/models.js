@@ -79,6 +79,7 @@ const orderSchema = new mongoose.Schema({
   subtotal: Number, deliveryFee: Number, tax: Number, amount: Number,
   currency: { type: String, default: "INR" },
   razorpayOrderId: String, razorpayPaymentId: String,
+  providerSetupState: { type: String, enum: ["creating", "idle"], default: "idle" }, providerSetupStartedAt: Date,
   paymentStatus: { type: String, default: "pending" },
   testOrder: { type: Boolean, default: false },
   status: { type: String, default: "pending_payment" },

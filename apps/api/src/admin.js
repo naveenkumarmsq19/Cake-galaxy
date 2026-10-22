@@ -230,6 +230,17 @@ export function createAdminRouter() {
     if (!request) throw new HttpError(404, "Request not found.");
     res.json({ request });
   });
+  router.get("/orders/:reference/uploads/:id", async (req, res) => {
+    const uploadId = text(req.params.id, 60);
+    const order = await Order.findOne({ reference: text(req.params.reference, 40), ...scoped(req), "items.uploadId": uploadId }).lean();
+    if (!order) throw new HttpError(404, "Order image not found.");
+    const upload = await Upload.findOne({ id: uploadId, ownerPhone: order.customerPhone }).lean();
+    if (!upload?.fileId) throw new HttpError(404, "Order image not found.");
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: "customerUploads" });
+    res.type("image/jpeg");
+    res.setHeader("Cache-Control", "private, no-store");
+    bucket.openDownloadStream(upload.fileId).on("error", () => { if (!res.headersSent) res.status(404).end(); else res.destroy(); }).pipe(res);
+  });
   router.get("/uploads/:id", async (req, res) => {
     const upload = await Upload.findOne({ id: text(req.params.id, 60) }).lean();
     if (!upload) throw new HttpError(404, "Image not found.");

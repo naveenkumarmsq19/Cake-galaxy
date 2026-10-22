@@ -21,6 +21,19 @@ export function deliveryDate(value, today = new Intl.DateTimeFormat("en-CA", { t
   return date;
 }
 
+export function validateDeliverySlot(date, slot, now = new Date(), minimumPreparationMinutes = 0) {
+  const allowed = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
+  if (!allowed.includes(slot)) throw new HttpError(400, "Choose an available delivery time.");
+  if (!Number.isSafeInteger(minimumPreparationMinutes) || minimumPreparationMinutes < 0 || minimumPreparationMinutes > 1440) throw new Error("Invalid preparation minutes setting.");
+  const formatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const parts = Object.fromEntries(formatter.formatToParts(now).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  const today = parts.year + "-" + parts.month + "-" + parts.day;
+  const slotStart = [600, 780, 960, 1140][allowed.indexOf(slot)];
+  const currentMinutes = Number(parts.hour) * 60 + Number(parts.minute);
+  if (date === today && slotStart < currentMinutes + minimumPreparationMinutes) throw new HttpError(400, "This delivery slot has already started or does not allow enough preparation time. Choose a later slot.");
+  return slot;
+}
+
 export function priceItem(item, product) {
   if (!product?.active || !product.weights.includes(Number(item.size)) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) throw new HttpError(400, "A cake in your bag is unavailable. Please review your bag.");
   if (item.eggless && !product.eggless) throw new HttpError(400, "Eggless is unavailable for this cake.");
