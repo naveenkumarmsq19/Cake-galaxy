@@ -291,6 +291,15 @@ function productChanges(body) {
     changes.weights = body.weights;
   }
   if (body?.price !== undefined) changes.price = money(body.price);
+  if (body?.variantPrices !== undefined) {
+    if (!body.variantPrices || typeof body.variantPrices !== "object" || Array.isArray(body.variantPrices) || Object.keys(body.variantPrices).length > 12) throw new HttpError(400, "Enter up to 12 valid size prices.");
+    const values = {};
+    for (const [key, value] of Object.entries(body.variantPrices)) {
+      if (!/^w_[0-9]+(?:_[0-9]+)?$/.test(key) || !Number.isSafeInteger(value) || value <= 0 || value > 100_000_000) throw new HttpError(400, "Enter a valid price in paise for each cake size.");
+      values[key] = value;
+    }
+    changes.variantPrices = values;
+  }
   for (const field of ["active", "eggless", "photo"]) if (body?.[field] !== undefined) {
     if (typeof body[field] !== "boolean") throw new HttpError(400, "Invalid " + field + " flag.");
     changes[field] = body[field];

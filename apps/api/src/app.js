@@ -64,6 +64,31 @@ async function confirmCaptured(order, paymentId) {
   return paid;
 }
 
+async function prepareProviderOrder(order) {
+  // Atomically claim an incomplete payment-order setup. An abandoned claim expires after 45 seconds.
+  const now = new Date();
+  const token = randomUUID();
+  const claimed = await Order.findOneAndUpdate({
+    _id: order._id, paymentStatus: "pending", razorpayOrderId: { $exists: false },
+    $or: [{ providerSetupState: { $ne: "creating" } }, { providerSetupStartedAt: { $lt: new Date(now.getTime() - 45_000) } }]
+  }, { $set: { providerSetupState: "creating", providerSetupStartedAt: now, providerSetupToken: token } }, { new: true });
+  if (!claimed) throw new HttpError(409, "The order is being prepared. Check My orders before retrying.");
+  try {
+    const prepared = await razorpay("POST", "/orders", { amount: claimed.amount, currency: "INR", receipt: claimed.reference, notes: { reference: claimed.reference } });
+    if (!prepared.id || prepared.amount !== claimed.amount || prepared.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
+    const saved = await Order.findOneAndUpdate(
+      { _id: claimed._id, providerSetupToken: token, razorpayOrderId: { $exists: false } },
+      { $set: { razorpayOrderId: prepared.id, providerSetupState: "idle" }, $unset: { providerSetupStartedAt: 1, providerSetupToken: 1 } },
+      { new: true }
+    );
+    if (!saved) throw new HttpError(409, "Payment setup changed. Check My orders before retrying.");
+    return { reference: saved.reference, orderId: saved.razorpayOrderId, amount: saved.amount, currency: "INR" };
+  } catch (error) {
+    await Order.updateOne({ _id: claimed._id, providerSetupToken: token }, { $set: { providerSetupState: "idle" }, $unset: { providerSetupStartedAt: 1, providerSetupToken: 1 } }).catch(() => {});
+    throw error;
+  }
+}
+
 export function createApp() {
   const app = express();
   const origins = (process.env.WEB_ORIGINS || process.env.WEB_ORIGIN || "http://localhost:3000")
@@ -212,7 +237,8 @@ export function createApp() {
     if (existing) {
       if (existing.paymentStatus === "test_cod" && testCod) return res.json({ reference: existing.reference, amount: existing.amount, currency: "INR", status: "confirmed", order: returnOrder(existing) });
       if (existing.paymentStatus === "test_cod" || testCod) throw new HttpError(409, "This order was already submitted with a different payment option. Refresh checkout and try again.");
-      if (!existing.razorpayOrderId) throw new HttpError(409, "Order is being prepared. Please check My orders before retrying.");
+      if (existing.paymentStatus === "paid") throw new HttpError(409, "This order is already paid. Check My orders.");
+      if (!existing.razorpayOrderId) return res.json(await prepareProviderOrder(existing));
       return res.json({ reference: existing.reference, orderId: existing.razorpayOrderId, amount: existing.amount, currency: "INR" });
     }
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 30) throw new HttpError(400, "Add a cake to your bag first.");
@@ -257,11 +283,7 @@ export function createApp() {
       delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: !testCod && address.whatsapp === true,
       ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : {}) });
     if (testCod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });
-    const providerOrder = await razorpay("POST", "/orders", { amount, currency: "INR", receipt: reference, notes: { reference } });
-    if (!providerOrder.id || providerOrder.amount !== amount || providerOrder.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
-    order.razorpayOrderId = providerOrder.id;
-    await order.save();
-    res.status(201).json({ reference, orderId: providerOrder.id, amount, currency: "INR" });
+    res.status(201).json(await prepareProviderOrder(order));
   });
 
   app.post("/api/checkout/verify", authenticated, async (req, res) => {

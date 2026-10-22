@@ -20,7 +20,7 @@ const challengeSchema = new mongoose.Schema({
 challengeSchema.index({ phone: 1, createdAt: -1 });
 const productSchema = new mongoose.Schema({
   id: { type: String, unique: true, required: true },
-  name: String, price: Number, category: [String], flavour: String, image: String,
+  name: String, price: Number, variantPrices: { type: Map, of: Number, default: {} }, category: [String], flavour: String, image: String,
   badge: String, description: String, weights: [Number], unit: String, eggless: Boolean,
   photo: { type: Boolean, default: false }, active: { type: Boolean, default: true }
 }, options);
@@ -79,7 +79,7 @@ const orderSchema = new mongoose.Schema({
   subtotal: Number, deliveryFee: Number, tax: Number, amount: Number,
   currency: { type: String, default: "INR" },
   razorpayOrderId: String, razorpayPaymentId: String,
-  providerSetupState: { type: String, enum: ["creating", "idle"], default: "idle" }, providerSetupStartedAt: Date,
+  providerSetupState: { type: String, enum: ["creating", "idle"], default: "idle" }, providerSetupStartedAt: Date, providerSetupToken: String,
   paymentStatus: { type: String, default: "pending" },
   testOrder: { type: Boolean, default: false },
   status: { type: String, default: "pending_payment" },

@@ -28,8 +28,9 @@ export function Shop() {
   const sort = params.get("sort") || "recommended";
   const options = ["All", "Birthday", "Anniversary", "Chocolate", "Kids", "Photo", "Designer", "Cupcakes"];
   const matches = catalog.filter((product) => (category === "All" || product.category.includes(category) || product.flavour === category) && (product.name + " " + product.flavour + " " + product.category.join(" ")).toLowerCase().includes(query.toLowerCase()));
-  if (sort === "low") matches.sort((a, b) => a.price - b.price);
-  if (sort === "high") matches.sort((a, b) => b.price - a.price);
+  const startingPrice = (p) => unitPrice({ productId: p.id, size: p.weights[0], eggless: false, addons: [] }, p);
+  if (sort === "low") matches.sort((a, b) => startingPrice(a) - startingPrice(b));
+  if (sort === "high") matches.sort((a, b) => startingPrice(b) - startingPrice(a));
   function navigate(next) { const search = new URLSearchParams({ category, q: query, sort, ...next }); router.push("/shop?" + search); }
   return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Cakes</div><div className="page-heading"><div><h1>{query ? "Results for “" + query + "”" : category === "All" ? "Find your favourite cake" : category + " cakes"}</h1><p>A little personal touch makes all the difference.</p></div></div>
     <div className="catalog-toolbar"><span>{matches.length} cakes to explore</span><select className="mobile-filter" aria-label="Filter cakes" value={category} onChange={(event) => navigate({ category: event.target.value })}>{options.map((name) => <option key={name} value={name}>{name === "All" ? "All cakes" : name}</option>)}</select><select aria-label="Sort cakes" value={sort} onChange={(event) => navigate({ sort: event.target.value })}><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div>
