@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import mongoose from "mongoose";
 import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Upload } from "./models.js";
 import { HttpError, text } from "./validation.js";
+import { registerAdminGalleryRoutes } from "./gallery.js";
 
 const scrypt = promisify(rawScrypt);
 const cookieName = "cg_admin_session";
@@ -252,6 +253,7 @@ export function createAdminRouter() {
     bucket.openDownloadStream(upload.fileId).on("error", () => { if (!res.headersSent) res.status(404).end(); else res.destroy(); }).pipe(res);
   });
 
+  registerAdminGalleryRoutes(router, requireSuper);
   router.get("/products", async (_req, res) => {
     const products = await Product.find().sort({ name: 1 }).lean();
     res.json({ products });
@@ -265,6 +267,11 @@ export function createAdminRouter() {
     res.status(201).json({ product });
   });
   router.patch("/products/:id", requireSuper, async (req, res) => {
+    if (req.body?.active === true) {
+      const target = await Product.findOne({ id: text(req.params.id, 80), deletedAt: null }).lean();
+      if (!target) throw new HttpError(404, "Product not found.");
+      if (!(target.images || []).length) throw new HttpError(400, "Upload at least one approved cake photo before enabling this product.");
+    }
     const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: null }, { $set: productChanges(req.body) }, { new: true, runValidators: true });
     if (!product) throw new HttpError(404, "Product not found.");
     res.json({ product });
@@ -290,9 +297,10 @@ function productChanges(body) {
   }
   if (body?.image !== undefined) {
     const image = text(body.image, 500, false);
-    if (image && !/^https:\/\//.test(image) && !/^\/images\/[a-zA-Z0-9_.-]+$/.test(image)) throw new HttpError(400, "Use an HTTPS image URL or an /images/ path.");
+    if (image && !/^https:\/\//.test(image) && !/^\/images\/[a-zA-Z0-9_.-]+$/.test(image) && !/^\/api\/product-images\/[0-9a-f-]{36}$/i.test(image)) throw new HttpError(400, "Use an HTTPS image URL or an /images/ path.");
     changes.image = image;
   }
+  if (body?.menuCategory !== undefined) changes.menuCategory = text(body.menuCategory, 80, false);
   if (body?.category !== undefined) {
     if (!Array.isArray(body.category) || body.category.length > 10) throw new HttpError(400, "Enter up to 10 categories.");
     changes.category = body.category.map((value) => text(value, 60));

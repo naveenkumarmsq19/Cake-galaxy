@@ -11,6 +11,7 @@ import sharp from "sharp";
 import { addons } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
+import { createProductGalleryRouter } from "./gallery.js";
 import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { invoiceConfigured, issueInvoice } from "./invoice.js";
@@ -119,6 +120,7 @@ export function createApp() {
     next();
   });
   app.use("/api/admin", createAdminRouter());
+  app.use("/api/product-images", createProductGalleryRouter());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api/ready", (_req, res) => {

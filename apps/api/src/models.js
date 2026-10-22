@@ -20,7 +20,7 @@ const challengeSchema = new mongoose.Schema({
 challengeSchema.index({ phone: 1, createdAt: -1 });
 const productSchema = new mongoose.Schema({
   id: { type: String, unique: true, required: true },
-  name: String, price: Number, variantPrices: { type: Map, of: Number, default: {} }, variantLabels: { type: Map, of: String, default: {} }, category: [String], flavour: String, image: String,
+  name: String, price: Number, images: { type: [String], default: [] }, menuCategory: String, variantPrices: { type: Map, of: Number, default: {} }, variantLabels: { type: Map, of: String, default: {} }, category: [String], flavour: String, image: String,
   badge: String, description: String, weights: [Number], unit: String, eggless: Boolean,
   photo: { type: Boolean, default: false }, active: { type: Boolean, default: true },
   menuImported: { type: Boolean, default: false }, deletedAt: { type: Date, default: null },
@@ -98,7 +98,13 @@ orderSchema.index({ razorpayPaymentId: 1 }, { unique: true, sparse: true });
 export const Customer = mongoose.model("Customer", customerSchema);
 export const Session = mongoose.model("Session", sessionSchema);
 export const LoginChallenge = mongoose.model("LoginChallenge", challengeSchema);
+const productImageSchema = new mongoose.Schema({
+  id: { type: String, unique: true, required: true }, productId: { type: String, required: true, index: true },
+  fileId: { type: mongoose.Schema.Types.ObjectId, required: true }, hash: String, length: Number
+}, options);
+productImageSchema.index({ productId: 1, hash: 1 });
 export const Product = mongoose.model("Product", productSchema);
+export const ProductImage = mongoose.model("ProductImage", productImageSchema);
 export const ServiceArea = mongoose.model("ServiceArea", areaSchema);
 export const Branch = mongoose.model("Branch", branchSchema);
 export const AdminUser = mongoose.model("AdminUser", adminUserSchema);

@@ -24,6 +24,12 @@ async function start() {
     updateOne: { filter: { id: product.id }, update: { $setOnInsert: product }, upsert: true }
   })));
   if (menuSeed.upsertedCount) process.stdout.write("Imported " + menuSeed.upsertedCount + " printed-menu products as INACTIVE admin drafts; no existing edits were overwritten.\n");
+  await Product.bulkWrite(menuProducts.map(({ id, menuCategory }) => ({
+    updateOne: { filter: { id, menuCategory: { $exists: false } }, update: { $set: { menuCategory } } }
+  })));
+  // Existing seed/placeholder products must not be offered when user has requested uploaded photos only.
+  const hidden = await Product.updateMany({ active: true, "images.0": { $exists: false } }, { $set: { active: false } });
+  if (hidden.modifiedCount) process.stdout.write("Disabled " + hidden.modifiedCount + " products without uploaded photo galleries.\n");
 
   const initialBranches = [
     { code: "BR01", name: "Peenya", address: "Laggere Main Rd, Preethi Nagar, MEI Colony, Phase 3, Peenya, Bengaluru, Karnataka 560058", basePincode: "560058" },
