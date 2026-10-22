@@ -29,7 +29,11 @@ export default function PhoneVerification({ phone, onPhoneChange, onVerified }) 
       if (!result.sent || !result.requestId) throw new Error("We couldn't send the code. Please try again.");
       setRequestPhone(phone);
       setRequestId(result.requestId);
-      setFeedback(result.testMode ? "Enter your configured test code. No SMS was sent." : "Enter the code sent to +91 " + phone + ".");
+      setFeedback(result.testMode
+        ? "Enter your configured test code. No WhatsApp message was sent."
+        : result.channel === "development"
+          ? "Enter the development code shown in the API terminal."
+          : "Enter the 6-digit code sent on WhatsApp to +91 " + phone + ".");
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }

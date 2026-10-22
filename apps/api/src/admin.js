@@ -230,6 +230,17 @@ export function createAdminRouter() {
     if (!request) throw new HttpError(404, "Request not found.");
     res.json({ request });
   });
+  router.get("/orders/:reference/uploads/:id", async (req, res) => {
+    const uploadId = text(req.params.id, 60);
+    const order = await Order.findOne({ reference: text(req.params.reference, 40), ...scoped(req), "items.uploadId": uploadId }).lean();
+    if (!order) throw new HttpError(404, "Order image not found.");
+    const upload = await Upload.findOne({ id: uploadId, ownerPhone: order.customerPhone }).lean();
+    if (!upload?.fileId) throw new HttpError(404, "Order image not found.");
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: "customerUploads" });
+    res.type("image/jpeg");
+    res.setHeader("Cache-Control", "private, no-store");
+    bucket.openDownloadStream(upload.fileId).on("error", () => { if (!res.headersSent) res.status(404).end(); else res.destroy(); }).pipe(res);
+  });
   router.get("/uploads/:id", async (req, res) => {
     const upload = await Upload.findOne({ id: text(req.params.id, 60) }).lean();
     if (!upload) throw new HttpError(404, "Image not found.");
@@ -280,6 +291,15 @@ function productChanges(body) {
     changes.weights = body.weights;
   }
   if (body?.price !== undefined) changes.price = money(body.price);
+  if (body?.variantPrices !== undefined) {
+    if (!body.variantPrices || typeof body.variantPrices !== "object" || Array.isArray(body.variantPrices) || Object.keys(body.variantPrices).length > 12) throw new HttpError(400, "Enter up to 12 valid size prices.");
+    const values = {};
+    for (const [key, value] of Object.entries(body.variantPrices)) {
+      if (!/^w_[0-9]+(?:_[0-9]+)?$/.test(key) || !Number.isSafeInteger(value) || value <= 0 || value > 100_000_000) throw new HttpError(400, "Enter a valid price in paise for each cake size.");
+      values[key] = value;
+    }
+    changes.variantPrices = values;
+  }
   for (const field of ["active", "eggless", "photo"]) if (body?.[field] !== undefined) {
     if (typeof body[field] !== "boolean") throw new HttpError(400, "Invalid " + field + " flag.");
     changes[field] = body[field];

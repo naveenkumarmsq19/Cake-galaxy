@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { addons } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
-import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare } from "./validation.js";
+import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { invoiceConfigured, issueInvoice } from "./invoice.js";
 
@@ -19,7 +19,7 @@ const cookieName = "cg_session";
 const hours = 60 * 60 * 1000;
 const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
 const hash = (value) => createHash("sha256").update(value).digest("hex");
-const merchantReady = () => razorpayConfigured() && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
+const merchantReady = () => razorpayConfigured() && !!process.env.RAZORPAY_WEBHOOK_SECRET && invoiceConfigured() && process.env.CATALOG_APPROVED === "true" && process.env.POLICIES_APPROVED === "true";
 const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
 const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
@@ -64,12 +64,37 @@ async function confirmCaptured(order, paymentId) {
   return paid;
 }
 
+async function prepareProviderOrder(order) {
+  // Atomically claim an incomplete payment-order setup. An abandoned claim expires after 45 seconds.
+  const now = new Date();
+  const token = randomUUID();
+  const claimed = await Order.findOneAndUpdate({
+    _id: order._id, paymentStatus: "pending", razorpayOrderId: { $exists: false },
+    $or: [{ providerSetupState: { $ne: "creating" } }, { providerSetupStartedAt: { $lt: new Date(now.getTime() - 45_000) } }]
+  }, { $set: { providerSetupState: "creating", providerSetupStartedAt: now, providerSetupToken: token } }, { new: true });
+  if (!claimed) throw new HttpError(409, "The order is being prepared. Check My orders before retrying.");
+  try {
+    const prepared = await razorpay("POST", "/orders", { amount: claimed.amount, currency: "INR", receipt: claimed.reference, notes: { reference: claimed.reference } });
+    if (!prepared.id || prepared.amount !== claimed.amount || prepared.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
+    const saved = await Order.findOneAndUpdate(
+      { _id: claimed._id, providerSetupToken: token, razorpayOrderId: { $exists: false } },
+      { $set: { razorpayOrderId: prepared.id, providerSetupState: "idle" }, $unset: { providerSetupStartedAt: 1, providerSetupToken: 1 } },
+      { new: true }
+    );
+    if (!saved) throw new HttpError(409, "Payment setup changed. Check My orders before retrying.");
+    return { reference: saved.reference, orderId: saved.razorpayOrderId, amount: saved.amount, currency: "INR" };
+  } catch (error) {
+    await Order.updateOne({ _id: claimed._id, providerSetupToken: token }, { $set: { providerSetupState: "idle" }, $unset: { providerSetupStartedAt: 1, providerSetupToken: 1 } }).catch(() => {});
+    throw error;
+  }
+}
+
 export function createApp() {
   const app = express();
   const origins = (process.env.WEB_ORIGINS || process.env.WEB_ORIGIN || "http://localhost:3000")
     .split(",").map((value) => value.trim().replace(/\/$/, "")).filter(Boolean);
   app.disable("x-powered-by");
-  if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
+  if (process.env.NODE_ENV === "production" || process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
   app.use((req, res, next) => { res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); next(); });
   app.use(cors({ origin: origins, credentials: true }));
   app.use(cookieParser());
@@ -96,6 +121,10 @@ export function createApp() {
   app.use("/api/admin", createAdminRouter());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/ready", (_req, res) => {
+    const databaseReady = mongoose.connection.readyState === 1;
+    res.status(databaseReady ? 200 : 503).json({ ok: databaseReady, database: databaseReady ? "connected" : "unavailable" });
+  });
   app.get("/api/catalog", async (_req, res) => {
     const catalog = await Product.find({ active: true }, { _id: 0, __v: 0, active: 0 }).lean();
     res.json({ products: catalog, addons });
@@ -119,11 +148,12 @@ export function createApp() {
     const recent = await LoginChallenge.findOne({ phone, createdAt: { $gt: new Date(Date.now() - 30_000) } });
     if (recent) throw new HttpError(429, "Please wait before requesting another code.");
     const testMode = testPhoneEnabled(phone);
-    const sent = testMode ? { code: process.env.TEST_OTP_CODE } : await sendOtp(phone);
+    const sent = testMode ? { code: process.env.TEST_OTP_CODE, channel: "test" } : await sendOtp(phone);
     const requestId = randomUUID();
     const codeHash = sent.code ? hash(requestId + ":" + sent.code) : null;
-    await LoginChallenge.create({ requestId, phone, codeHash, testMode, expiresAt: new Date(Date.now() + 5 * 60_000) });
-    res.status(201).json({ sent: true, requestId, retryAfter: 30, testMode });
+    const channel = sent.channel || "sms";
+    await LoginChallenge.create({ requestId, phone, codeHash, testMode, channel, expiresAt: new Date(Date.now() + 5 * 60_000) });
+    res.status(201).json({ sent: true, requestId, retryAfter: 30, testMode, channel });
   });
   app.post("/api/auth/verify", otpLimit, async (req, res) => {
     const requestId = text(req.body?.requestId, 60);
@@ -132,8 +162,18 @@ export function createApp() {
     const challenge = await LoginChallenge.findOneAndUpdate({ requestId, expiresAt: { $gt: new Date() }, attempts: { $lt: 5 } }, { $inc: { attempts: 1 } }, { new: true });
     if (!challenge) throw new HttpError(400, "This code has expired. Request a new one.");
     if (challenge.codeHash) {
-      if ((!challenge.testMode && process.env.NODE_ENV === "production") || (challenge.testMode && !testPhoneEnabled(challenge.phone)) || !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) throw new HttpError(400, "That code is incorrect.");
-    } else await verifyOtp(challenge.phone, otp);
+      const localChannels = ["test", "development", "whatsapp"];
+      if (!localChannels.includes(challenge.channel) ||
+          (challenge.channel === "test" && !testPhoneEnabled(challenge.phone)) ||
+          (challenge.channel === "development" && process.env.NODE_ENV === "production") ||
+          !safeCompare(challenge.codeHash, hash(requestId + ":" + otp))) {
+        throw new HttpError(400, "That code is incorrect.");
+      }
+    } else if (challenge.channel === "sms" || !challenge.channel) {
+      await verifyOtp(challenge.phone, otp);
+    } else {
+      throw new HttpError(400, "That code is incorrect.");
+    }
     const consumed = await LoginChallenge.deleteOne({ _id: challenge._id });
     if (consumed.deletedCount !== 1) throw new HttpError(409, "That code has already been used. Request a new one.");
     await Customer.updateOne({ phone: challenge.phone }, { $setOnInsert: { phone: challenge.phone } }, { upsert: true });
@@ -197,7 +237,8 @@ export function createApp() {
     if (existing) {
       if (existing.paymentStatus === "test_cod" && testCod) return res.json({ reference: existing.reference, amount: existing.amount, currency: "INR", status: "confirmed", order: returnOrder(existing) });
       if (existing.paymentStatus === "test_cod" || testCod) throw new HttpError(409, "This order was already submitted with a different payment option. Refresh checkout and try again.");
-      if (!existing.razorpayOrderId) throw new HttpError(409, "Order is being prepared. Please check My orders before retrying.");
+      if (existing.paymentStatus === "paid") throw new HttpError(409, "This order is already paid. Check My orders.");
+      if (!existing.razorpayOrderId) return res.json(await prepareProviderOrder(existing));
       return res.json({ reference: existing.reference, orderId: existing.razorpayOrderId, amount: existing.amount, currency: "INR" });
     }
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 30) throw new HttpError(400, "Add a cake to your bag first.");
@@ -212,7 +253,7 @@ export function createApp() {
     if (!assignment) throw new HttpError(400, "Delivery isn't available at that pincode.");
     const { area, branch } = assignment;
     const delivery = { date: deliveryDate(body.delivery?.date), slot: text(body.delivery?.slot, 40) };
-    if (!slots.includes(delivery.slot)) throw new HttpError(400, "Choose an available delivery time.");
+    validateDeliverySlot(delivery.date, delivery.slot, new Date(), Number(process.env.MIN_PREP_MINUTES || "0"));
     const productIds = body.items.map((item) => text(item.productId, 80));
     const available = await Product.find({ id: { $in: productIds }, active: true }).lean();
     const byId = new Map(available.map((product) => [product.id, product]));
@@ -242,11 +283,7 @@ export function createApp() {
       delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: !testCod && address.whatsapp === true,
       ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : {}) });
     if (testCod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });
-    const providerOrder = await razorpay("POST", "/orders", { amount, currency: "INR", receipt: reference, notes: { reference } });
-    if (!providerOrder.id || providerOrder.amount !== amount || providerOrder.currency !== "INR") throw new HttpError(502, "Payment order could not be confirmed. Please check My orders.");
-    order.razorpayOrderId = providerOrder.id;
-    await order.save();
-    res.status(201).json({ reference, orderId: providerOrder.id, amount, currency: "INR" });
+    res.status(201).json(await prepareProviderOrder(order));
   });
 
   app.post("/api/checkout/verify", authenticated, async (req, res) => {

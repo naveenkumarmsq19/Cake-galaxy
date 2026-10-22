@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { products as initialProducts, unitPrice } from "@cake-galaxy/catalog";
+import { discountAmount, products as initialProducts, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -87,7 +87,7 @@ export function StoreProvider({ children }) {
     try {
       const saved = JSON.parse(localStorage.getItem(basketKey) || "[]");
       if (Array.isArray(saved) && !cartRef.current.length) {
-        const basket = saved.filter((item) => initialProducts.some((p) => p.id === item.productId && p.weights.includes(Number(item.size))) && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 20).slice(0, 30);
+        const basket = saved.filter((item) => item && typeof item.productId === "string" && Number.isFinite(Number(item.size)) && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 20).slice(0, 30);
         cartRef.current = basket;
         setCart(basket);
       }
@@ -104,7 +104,16 @@ export function StoreProvider({ children }) {
     setHydrated(true);
     refreshSession().catch(() => {});
     api("/catalog", { skipCsrf: true }).then((data) => {
-      if (Array.isArray(data.products) && data.products.length) setCatalog(data.products);
+      if (Array.isArray(data.products)) {
+        setCatalog(data.products);
+        const available = new Map(data.products.map((product) => [product.id, product]));
+        const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)));
+        if (valid.length !== cartRef.current.length) {
+          cartRef.current = valid;
+          setCart(valid);
+          try { localStorage.setItem(basketKey, JSON.stringify(valid)); } catch {}
+        }
+      }
     }).catch(() => {});
   }, []);
 
@@ -136,9 +145,11 @@ export function StoreProvider({ children }) {
     try { sessionStorage.setItem(checkoutKey, JSON.stringify(details)); } catch {}
   }
   const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = cart.reduce((sum, item) => sum + unitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const subtotalBeforeDiscount = cart.reduce((sum, item) => sum + regularUnitPrice(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const discountTotal = cart.reduce((sum, item) => sum + discountAmount(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
+  const subtotal = subtotalBeforeDiscount - discountTotal;
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }

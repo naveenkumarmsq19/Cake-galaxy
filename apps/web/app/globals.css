@@ -105,6 +105,10 @@ main { min-height: 65vh; }
 .product-card h3 { font-size: 15px; line-height: 1.5; font-weight: 500; margin: 0 0 6px; }
 .price-line { display: flex; align-items: center; gap: 9px; }
 .price { font-weight: 650; font-size: 16px; }
+.price-original { color: var(--muted); font-size: 13px; font-weight: 400; }
+.discount-badge { color: var(--green) !important; font-weight: 650; }
+.discount-copy { color: var(--green); margin: 5px 0 8px; }
+.detail-price-line { display: flex; align-items: baseline; gap: 10px; }
 .price-line small { font-size: 12px; color: var(--muted); }
 .product-card .meta { font-size: 12px; color: var(--muted); margin: 7px 0 0; }
 .custom-banner { display: grid; grid-template-columns: 1fr 1fr; background: #f1e9e3; overflow: hidden; border-radius: 12px; }
@@ -177,6 +181,7 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .summary h2 { font-size: 19px; }
 .summary-row { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 11px; font-size: 14px; color: #65715f; }
 .summary-row.total { color: var(--ink); border-top: 1px solid #dce3d7; padding-top: 18px; margin: 20px 0; font-size: 18px; font-weight: 650; }
+.discount-row { color: var(--green); }
 .summary .small-print { font-size: 12px; margin: 12px 0 0; color: var(--muted); text-align: center; }
 .cart-item { display: grid; grid-template-columns: 112px minmax(0,1fr) auto; gap: 20px; align-items: start; border-bottom: 1px solid var(--line); padding-bottom: 23px; margin-bottom: 23px; }
 .cart-item:last-child { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }

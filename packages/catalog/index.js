@@ -38,11 +38,38 @@ export const getProduct = (id, list = products) => list.find((product) => produc
 export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
 export const sizeLabel = (product, size = product.weights[0]) => size + (product.unit === "pieces" ? " pieces" : " kg");
 
+export function egglessSurcharge(item, product = getProduct(item.productId)) {
+  if (!product || item?.eggless !== true) return 0;
+  return product.unit === "kg" ? Math.round(Number(item.size) * 10000) : 5000;
+}
+
+export const weightKey = (size) => "w_" + String(Number(size)).replace(".", "_");
+
+export function catalogueBasePrice(item, product = getProduct(item.productId)) {
+  if (!product || !product.weights?.includes(Number(item.size))) return 0;
+  const key = weightKey(item.size);
+  const configured = product.variantPrices?.get?.(key) ?? product.variantPrices?.[key];
+  return Number.isSafeInteger(configured) && configured > 0 ? configured : Math.round(product.price * Number(item.size) / product.weights[0]);
+}
+
+export function regularUnitPrice(item, product = getProduct(item.productId)) {
+  if (!product || !product.weights.includes(Number(item.size))) return 0;
+  const base = catalogueBasePrice(item, product);
+  const extras = addons.filter((addon) => (item.addons || []).includes(addon.id)).reduce((sum, addon) => sum + addon.price, 0);
+  return base + egglessSurcharge(item, product) + extras;
+}
+
+export function discountAmount(item, product = getProduct(item.productId)) {
+  const size = Number(item?.size);
+  if (!product || product.unit !== "kg" || size <= 1 || !product.weights.includes(size)) return 0;
+  const base = catalogueBasePrice(item, product);
+  const eligiblePrice = base + egglessSurcharge(item, product);
+  return Math.round((eligiblePrice / 100) * 0.1) * 100;
+}
+
 export function unitPrice(item, product = getProduct(item.productId)) {
   if (!product || !product.weights.includes(Number(item.size))) return 0;
-  const base = Math.round(product.price * Number(item.size) / product.weights[0]);
-  const extras = addons.filter((addon) => (item.addons || []).includes(addon.id)).reduce((sum, addon) => sum + addon.price, 0);
-  return base + (item.eggless ? 5000 : 0) + extras;
+  return regularUnitPrice(item, product) - discountAmount(item, product);
 }
 
 export function totals(items, quote = null) {
