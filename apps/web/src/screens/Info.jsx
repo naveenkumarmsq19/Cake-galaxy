@@ -53,7 +53,7 @@ export function Policy() {
     <div className="policy-content">
       <div className="breadcrumb"><Link href="/">Home</Link><span>/</span>{policy.title}</div>
       <h1>{policy.title}</h1>
-      <p className="subtle">Last reviewed: {policyUpdatedAt}</p>
+      <p className="subtle">Draft updated: {policyUpdatedAt}</p>
       <p>{policy.intro}</p>
       <nav aria-label="Other policies"><Link href="/policy?type=terms">Terms</Link>{" · "}<Link href="/policy?type=privacy">Privacy</Link>{" · "}<Link href="/policy?type=refund">Cancellation &amp; refunds</Link>{" · "}<Link href="/policy?type=delivery">Delivery</Link></nav>
       {policy.sections.map((section) => <section key={section.heading}>
