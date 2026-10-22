@@ -259,8 +259,14 @@ export function createApp() {
     const byId = new Map(available.map((product) => [product.id, product]));
     const items = [];
     for (const item of body.items) {
-      const priced = priceItem(item, byId.get(item.productId));
-      if (byId.get(item.productId).photo) {
+      const product = byId.get(item.productId);
+      const priced = priceItem(item, product);
+      if (product?.leadDays > 0) {
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+        const earliestDate = new Date(Date.parse(today) + product.leadDays * 86400000).toISOString().slice(0, 10);
+        if (delivery.date < earliestDate) throw new HttpError(400, product.name + " requires at least " + product.leadDays + " day(s) advance notice.");
+      }
+      if (product.photo) {
         if (!item.uploadId || !await Upload.findOne({ id: item.uploadId, ownerPhone: req.customer })) throw new HttpError(400, "Add a photo for the photo cake.");
       } else if (item.uploadId) throw new HttpError(400, "This cake doesn't accept a photo.");
       items.push(priced);

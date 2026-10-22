@@ -9,6 +9,8 @@ test("printed menu imports all 74 flavours into 14 categories with unique IDs", 
   assert.ok(menuProducts.every(p => !p.active && p.menuImported && p.unit === "menu"));
   assert.ok(menuProducts.every(p => p.weights.every(code => p.variantPrices[weightKey(code)] > 0 && p.variantLabels[weightKey(code)])));
   assert.equal(menuExtras.length, 6);
+  assert.equal(menuProducts.filter(p=>p.leadDays===1).length, 5);
+  assert.ok(menuProducts.filter(p=>p.leadDays===1).every(p=>p.category.includes("Menu")));
 });
 test("Pastry / Small / Medium prices are exact and do not imply kilogram weights", () => {
   const vanilla = menuProducts.find(p => p.id === "menu-vanilla-cake");

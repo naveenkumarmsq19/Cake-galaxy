@@ -302,6 +302,10 @@ function productChanges(body) {
     changes.weights = body.weights;
   }
   if (body?.price !== undefined) changes.price = money(body.price);
+  if (body?.leadDays !== undefined) {
+    if (!Number.isSafeInteger(body.leadDays) || body.leadDays < 0 || body.leadDays > 31) throw new HttpError(400, "Preparation lead days must be from 0 to 31.");
+    changes.leadDays = body.leadDays;
+  }
   if (body?.variantLabels !== undefined) {
     if (!body.variantLabels || typeof body.variantLabels !== "object" || Array.isArray(body.variantLabels) || Object.keys(body.variantLabels).length > 12) throw new HttpError(400, "Enter up to 12 valid option labels.");
     const labels = {};

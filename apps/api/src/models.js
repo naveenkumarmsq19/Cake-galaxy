@@ -23,7 +23,8 @@ const productSchema = new mongoose.Schema({
   name: String, price: Number, variantPrices: { type: Map, of: Number, default: {} }, variantLabels: { type: Map, of: String, default: {} }, category: [String], flavour: String, image: String,
   badge: String, description: String, weights: [Number], unit: String, eggless: Boolean,
   photo: { type: Boolean, default: false }, active: { type: Boolean, default: true },
-  menuImported: { type: Boolean, default: false }, deletedAt: { type: Date, default: null }
+  menuImported: { type: Boolean, default: false }, deletedAt: { type: Date, default: null },
+  leadDays: { type: Number, min: 0, max: 31, default: 0 }
 }, options);
 const areaSchema = new mongoose.Schema({
   pincode: { type: String, unique: true, required: true },

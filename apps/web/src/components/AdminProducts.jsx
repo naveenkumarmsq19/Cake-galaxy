@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "Birthday", flavour: "", image: "", weights: "0.5,1", unit: "kg", description: "", badge: "", eggless: false, photo: false, active: false };
+const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "Birthday", flavour: "", image: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
 const entries = (value) => Object.entries(value?.toJSON?.() || value || {});
 const formatMap = (value, asRupees = false) => entries(value).map(([key, n]) =>
   key.replace(/^w_/, "").replace("_", ".") + ":" + (asRupees ? (Number(n) / 100).toFixed(2).replace(/\.00$/, "") : n)
@@ -25,7 +25,7 @@ function parseMap(raw, asRupees = false) {
   return map;
 }
 function fromProduct(p) {
-  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: (p.category || []).join(", "), flavour: p.flavour || "", image: p.image || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
+  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: (p.category || []).join(", "), flavour: p.flavour || "", image: p.image || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", leadDays: String(p.leadDays || 0), description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
 }
 export default function AdminProducts({ products, isSuperAdmin, busy, request, execute }) {
   const [draft, setDraft] = useState(empty);
@@ -53,7 +53,7 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, e
       const labels = parseMap(draft.variantLabels);
       if (draft.unit === "menu" && sizes.some(w => !prices["w_" + String(w).replace(".", "_")] || !labels["w_" + String(w).replace(".", "_")])) throw new Error("Each printed-menu size needs a label and exact price.");
       const payload = { name: draft.name, flavour: draft.flavour, price: Math.round(Number(draft.price) * 100),
-        unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels,
+        unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels, leadDays: Number(draft.leadDays),
         category: draft.category.split(",").map(s => s.trim()).filter(Boolean), badge: draft.badge,
         description: draft.description, image: draft.image, eggless: draft.eggless,
         photo: draft.photo, active: draft.active };
@@ -101,6 +101,7 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, e
         <label>Base price (₹)<input required type="number" min="0.01" step="0.01" value={draft.price} onChange={e=>change("price",e.target.value)}/></label>
         <label>Exact prices (code:₹)<input placeholder="1:40, 2:249, 3:399" value={draft.variantPrices} onChange={e=>change("variantPrices",e.target.value)}/></label>
         <label className="admin-wide">Option labels (code:name)<input placeholder="1:Pastry, 2:Small, 3:Medium" value={draft.variantLabels} onChange={e=>change("variantLabels",e.target.value)}/></label>
+        <label>Preparation notice (days)<input type="number" min="0" max="31" step="1" value={draft.leadDays} onChange={e=>change("leadDays",e.target.value)}/></label>
         <label>Product badge<input maxLength={100} value={draft.badge} onChange={e=>change("badge",e.target.value)}/></label>
         <label className="admin-wide">Product photo URL (HTTPS or /images/)<input required value={draft.image} onChange={e=>change("image",e.target.value)}/></label>
         <label className="admin-wide">Description<textarea maxLength={1000} value={draft.description} onChange={e=>change("description",e.target.value)}/></label>

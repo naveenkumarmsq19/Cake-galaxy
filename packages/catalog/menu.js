@@ -553,13 +553,14 @@ export const menuProducts = menuSections.flatMap((group) => group.items.map((ite
     weights: options.map(([code]) => code),
     unit: "menu",
     category: ["Menu", /Chocolate|Choco|Cocoa|Nutella|Ferraro|Mocha/i.test(item.name + " " + group.title) ? "Chocolate" : "Birthday"],
-    flavour: item.name.replace(/\\s*\\(New\\)/i, "").trim(),
+    flavour: item.name.replace(/\s*\(New\)/i, "").trim(),
     badge: "Menu selection",
     description: "From the Cake Galaxy printed menu. Options are Pastry, Small and Medium (weight not specified in the source). Contact us to confirm cake design and allergen details. Product image is representative until replaced with an approved photograph.",
     image: imageFor(group.title),
     eggless: false,
     photo: false,
     active: false,
+    leadDays: group.title === "Cheese Cakes" ? 1 : 0,
     menuImported: true
   };
 }));
