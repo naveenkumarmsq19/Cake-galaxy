@@ -47,13 +47,14 @@ test("phone and delivery validators reject malformed inputs", () => {
 });
 
 test("OTP uses the configured MSG91 WhatsApp template rather than the SMS send endpoint", async () => {
-  const keys = ["NODE_ENV", "DEV_OTP_ENABLED", "MSG91_AUTH_KEY", "MSG91_WHATSAPP_NUMBER", "MSG91_WHATSAPP_OTP_TEMPLATE_NAME", "MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE", "MSG91_SMS_OTP_TEMPLATE_ID"];
+  const keys = ["NODE_ENV", "DEV_OTP_ENABLED", "CUSTOMER_OTP_CHANNEL", "MSG91_AUTH_KEY", "MSG91_WHATSAPP_NUMBER", "MSG91_WHATSAPP_OTP_TEMPLATE_NAME", "MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE", "MSG91_SMS_OTP_TEMPLATE_ID"];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const originalFetch = globalThis.fetch;
   let request;
   Object.assign(process.env, {
     NODE_ENV: "production",
     DEV_OTP_ENABLED: "false",
+    CUSTOMER_OTP_CHANNEL: "whatsapp",
     MSG91_AUTH_KEY: "test-auth-key",
     MSG91_WHATSAPP_NUMBER: "919999999999",
     MSG91_WHATSAPP_OTP_TEMPLATE_NAME: "cake_galaxy_login_otp",
@@ -62,7 +63,7 @@ test("OTP uses the configured MSG91 WhatsApp template rather than the SMS send e
   });
   globalThis.fetch = async (url, options) => {
     request = { url: String(url), options };
-    return new Response(JSON.stringify({ type: "success" }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ status: "success", hasError: false, errors: null, request_id: "mock-request" }), { status: 200, headers: { "Content-Type": "application/json" } });
   };
   try {
     const sent = await sendOtp("9876543210");
@@ -70,8 +71,9 @@ test("OTP uses the configured MSG91 WhatsApp template rather than the SMS send e
     assert.match(sent.code, /^[0-9]{6}$/);
     assert.equal(request.url, "https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/");
     const body = JSON.parse(request.options.body);
-    assert.deepEqual(body.payload.to_and_components[0].to, ["919876543210"]);
-    assert.equal(body.payload.to_and_components[0].components.body_1.value, sent.code);
+    assert.deepEqual(body.payload.template.to_and_components[0].to, ["919876543210"]);
+    assert.equal(body.payload.template.to_and_components[0].components.body_1.value, sent.code);
+    assert.equal(body.payload.template.to_and_components[0].components.button_1.value, sent.code);
     assert.equal(body.payload.template.name, "cake_galaxy_login_otp");
   } finally {
     globalThis.fetch = originalFetch;

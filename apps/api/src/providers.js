@@ -56,6 +56,8 @@ export async function sendSmsOtp(phone) {
   return { code: null, channel: "sms" };
 }
 
+// The OTP provider must only acknowledge a queued request: actual delivery
+// is tracked by MSG91 delivery reports and depends on Meta template eligibility.
 export async function sendOtp(phone) {
   if (process.env.DEV_OTP_ENABLED === "true" && process.env.NODE_ENV !== "production") {
     const code = String(randomInt(100000, 1000000));
@@ -63,46 +65,61 @@ export async function sendOtp(phone) {
     return { code, channel: "development" };
   }
 
-  // SMS is the primary real-customer delivery route when a DLT-approved
-  // MSG91 SMS OTP template has been configured. WhatsApp remains supported
-  // separately after Meta approves the required template.
-  if (process.env.MSG91_SMS_OTP_TEMPLATE_ID) return sendSmsOtp(phone);
+  // Make the channel explicit in production. An old SMS template variable
+  // must not silently override the merchant's WhatsApp-only choice.
+  const channel = process.env.CUSTOMER_OTP_CHANNEL || (process.env.MSG91_SMS_OTP_TEMPLATE_ID ? "sms" : "whatsapp");
+  if (channel === "sms") return sendSmsOtp(phone);
+  if (channel !== "whatsapp") throw new HttpError(503, "OTP delivery configuration is invalid.");
 
   const {
     MSG91_AUTH_KEY: key,
     MSG91_WHATSAPP_NUMBER: number,
     MSG91_WHATSAPP_OTP_TEMPLATE_NAME: template
   } = process.env;
-  if (!key || !number || !template) throw new HttpError(503, "Customer OTP is not configured. Configure an approved MSG91 SMS OTP template or an approved WhatsApp OTP template.");
+  if (!key || !/^\d{10,15}$/.test(number || "") || !template) {
+    throw new HttpError(503, "WhatsApp verification is not configured yet. Please contact Cake Galaxy support.");
+  }
 
   const code = String(randomInt(100000, 1000000));
+  // MSG91 authentication templates with a Copy Code button need the same
+  // dynamically generated OTP as BOTH body_1 and button_1. Never reuse a
+  // fixed OTP outside the existing, phone-restricted test mode.
+  const components = {
+    body_1: { type: "text", value: code },
+    button_1: { subtype: "url", type: "text", value: code }
+  };
+  const templateConfig = {
+    name: template,
+    language: { code: process.env.MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en", policy: "deterministic" },
+    to_and_components: [{ to: ["91" + phone], components }]
+  };
+  if (process.env.MSG91_WHATSAPP_OTP_TEMPLATE_NAMESPACE) {
+    templateConfig.namespace = process.env.MSG91_WHATSAPP_OTP_TEMPLATE_NAMESPACE;
+  }
+
   let response;
   try {
     response = await fetch("https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/", {
       method: "POST",
       signal: AbortSignal.timeout(15000),
-      headers: { authkey: key, "Content-Type": "application/json" },
+      headers: { authkey: key, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         integrated_number: number,
         content_type: "template",
-        payload: {
-          to_and_components: [{
-            to: ["91" + phone],
-            components: { body_1: { type: "text", value: code } }
-          }],
-          template: {
-            name: template,
-            language: { code: process.env.MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE || "en" }
-          }
-        }
+        payload: { messaging_product: "whatsapp", type: "template", template: templateConfig }
       })
     });
   } catch {
-    throw new HttpError(502, "Couldn't send a WhatsApp verification code. Please try again.");
+    throw new HttpError(502, "WhatsApp verification is temporarily unreachable. Please try again.");
   }
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.type === "error" || data.error) throw new HttpError(502, "Couldn't send a WhatsApp verification code. Please try again.");
+  const data = await response.json().catch(() => null);
+  // The WhatsApp API uses {status:"success", hasError:false, request_id:...},
+  // NOT the SMS OTP service's {type:"success"} response. It may return an
+  // error inside HTTP 200, which must never create a login challenge.
+  if (!response.ok || !data || data.status !== "success" || data.hasError === true || data.errors || data.error) {
+    throw new HttpError(502, "WhatsApp verification could not be requested. Check the approved OTP template and try again.");
+  }
   return { code, channel: "whatsapp" };
 }
 

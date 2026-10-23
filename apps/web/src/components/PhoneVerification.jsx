@@ -35,7 +35,7 @@ export default function PhoneVerification({ phone, onPhoneChange, onVerified }) 
           ? "Enter the development code shown in the API terminal."
           : result.channel === "sms"
             ? "Enter the 6-digit SMS code sent to +91 " + phone + "."
-            : "Enter the 6-digit code sent on WhatsApp to +91 " + phone + ".");
+            : "WhatsApp verification requested for +91 " + phone + ". If the message arrives, enter the 6-digit code within 5 minutes.");
     } catch (error) { setFeedback(error.message); }
     finally { setBusy(false); }
   }
