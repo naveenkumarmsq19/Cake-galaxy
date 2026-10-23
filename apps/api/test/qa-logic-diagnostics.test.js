@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deliverySlots, availableDeliverySlots } from "../../web/src/components/deliverySchedule.js";
-import { validateDeliverySlot } from "../src/validation.js";
+import { validateDeliverySlot, deliveryLocation } from "../src/validation.js";
 import { catalogueBasePrice, unitPrice } from "@cake-galaxy/catalog";
 import { defaultCategories, suggestCategory } from "../src/categoryService.js";
 import { imagekitPhotoCounts } from "../src/imageKitProduct.js";
@@ -34,6 +34,13 @@ test("QA diagnostic: auto-classifier gives fruit category priority for Chocolate
     suggestCategory({ name: "Chocolate Strawberry Cake", flavour: "Chocolate" }, defaultCategories),
     "Fruit Cakes"
   );
+});
+
+test("QA diagnostic: a Bengaluru pincode can be paired with a distant Delhi map pin", () => {
+  // The checkout separately validates the pincode and calls deliveryLocation(pin).
+  // The map-pin validator itself has no pincode/branch relation check.
+  const arbitraryDelhiPin = { lat: 28.6139, lng: 77.2090 };
+  assert.deepEqual(deliveryLocation(arbitraryDelhiPin), arbitraryDelhiPin);
 });
 
 test("QA diagnostic: imported ImageKit mapping references only 198 photos across 30 gallery names", () => {
