@@ -29,10 +29,11 @@ test("Super Admin can add disabled products, disable, archive and restore withou
       variantPrices: { w_2: 24900, w_3: 39900 },
       variantLabels: { w_2: "Small", w_3: "Medium" },
       weights: [2,3], unit: "menu", category: ["Chocolate Cakes"], categoryMode: "manual", flavour: "Vanilla",
-      image: "/images/celebration.jpg", active: true, eggless: false, photo: false };
+      active: true, eggless: false, photo: false };
     const create = await fetch(base, { method: "POST", headers, body: JSON.stringify(product) });
     assert.equal(create.status, 201, await create.text());
     assert.equal(seen[0][1].active, false, "new products must default to disabled");
+    assert.equal(seen[0][1].image, undefined, "photo uploads happen after creating the disabled product draft");
     const update = await fetch(base + "/my-test-cake", { method:"PATCH", headers, body: JSON.stringify({active:false}) });
     assert.equal(update.status, 200);
     assert.equal(seen[1][2].$set.active, false);
