@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playEmergencySiren } from "./adminSiren";
+import { readSirenPreference, writeSirenPreference } from "./adminAlertPreferences";
 
 const frequencySeconds = 12;
 const savedVolumeKey = "cakegalaxy.admin.emergency-volume";
@@ -12,6 +13,8 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   const [enabled, setEnabled] = useState(false);
   const [volume, setVolume] = useState(85);
   const volumeRef = useRef(85);
+  const enabledRef = useRef(false);
+  const pendingRef = useRef(false);
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const sound = useRef(null);
@@ -30,28 +33,49 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
     stopCurrent.current = playEmergencySiren(audio, volumeRef.current / 100);
   }, [stopSiren]);
 
-  async function prepareAudio() {
+  // Always invoke AudioContext.resume() synchronously within a user gesture when needed.
+  // Browsers may refuse to unlock a refreshed document without interaction.
+  const prepareAudio = useCallback(() => {
     const Context = window.AudioContext || window.webkitAudioContext;
-    if (!Context) throw new Error("Your browser does not support alert audio.");
+    if (!Context) return Promise.reject(new Error("Your browser does not support alert audio."));
     if (!sound.current || sound.current.state === "closed") sound.current = new Context();
-    await sound.current.resume();
-    if (sound.current.state !== "running") throw new Error("Browser blocked sound. Tap again or allow site audio.");
-    return sound.current;
-  }
+    if (sound.current.state === "running") return Promise.resolve(sound.current);
+    const context = sound.current;
+    return context.resume().then(() => {
+      if (context.state !== "running") throw new Error("Your browser blocked audio. Click anywhere on the Admin page to allow the siren.");
+      return context;
+    });
+  }, []);
 
-  async function enableAudio() {
-    try {
-      await prepareAudio();
-      setEnabled(true);
+  const unlockAudio = useCallback(() => {
+    if (!enabledRef.current || sound.current?.state === "running") return;
+    // This function is invoked directly by pointer/key events, not from an async effect.
+    void prepareAudio().then(() => {
+      if (enabledRef.current && pendingRef.current) siren();
       setWarning("");
-    } catch (e) {
-      setWarning(e.message || "Enable sound after interacting with the page.");
-    }
-  }
+    }).catch(() => {
+      setWarning("Alerts are saved. Allow sound in your browser and click the Admin page once to activate audio.");
+    });
+  }, [prepareAudio, siren]);
 
+  function enableAudio() {
+    enabledRef.current = true;
+    writeSirenPreference(window.localStorage, true);
+    setEnabled(true);
+    // The original button click provides the required user gesture.
+    void prepareAudio().then(() => {
+      setWarning("");
+      if (pendingRef.current) siren();
+    }).catch(error => {
+      setWarning(error.message || "Allow site sound and interact with the Admin page to activate siren audio.");
+    });
+  }
 
   function mute() {
+    enabledRef.current = false;
+    writeSirenPreference(window.localStorage, false);
     setEnabled(false);
+    setWarning("");
     stopSiren();
   }
 
@@ -63,11 +87,32 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   }
 
   useEffect(() => {
+    const remembered = readSirenPreference(window.localStorage);
+    enabledRef.current = remembered;
+    setEnabled(remembered);
+    if (remembered) {
+      // Best effort: browsers allowing autoplay resume without another click.
+      // If blocked, the next ordinary click/key press will unlock it silently.
+      void prepareAudio().then(() => {
+        if (enabledRef.current && pendingRef.current) siren();
+      }).catch(() => {});
+    }
     try {
       const saved = Number(localStorage.getItem(savedVolumeKey));
       if (saved >= 25 && saved <= 100) { volumeRef.current = saved; setVolume(saved); }
     } catch { /* Storage is optional. */ }
-  }, []);
+  }, [prepareAudio, siren]);
+
+  useEffect(() => {
+    // Previously enabled preference is restored automatically. Listening for a natural
+    // page interaction handles browsers that forbid sound immediately after refresh.
+    window.addEventListener("pointerdown", unlockAudio, true);
+    window.addEventListener("keydown", unlockAudio, true);
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio, true);
+      window.removeEventListener("keydown", unlockAudio, true);
+    };
+  }, [unlockAudio]);
 
   const refreshAttention = useCallback(async () => {
     const data = await request("orders/attention");
@@ -96,6 +141,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   }, [refreshAttention]);
 
   const hasPendingOrders = count > 0;
+  pendingRef.current = hasPendingOrders;
   useEffect(() => {
     if (!enabled || !hasPendingOrders) {
       stopSiren();
@@ -132,6 +178,6 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
         onChange={e=>adjustVolume(e.target.value)} aria-label="Emergency siren volume"/>
       <span>Adjust to a comfortable volume. The siren plays only for unaccepted orders.</span>
     </div>
-    <small>Keep Admin open for audible alerts. Your device/browser volume also affects loudness; background tabs may be throttled, and closing the page stops sound.</small>
+    <small>{enabled ? "Alert preference saved on this browser. After a refresh, some browsers unlock sound on your first normal click or key press. " : "Alert sounds are muted on this browser. " }Keep Admin open for audible alerts. Closing the page stops sound; device volume and background-tab restrictions still apply.</small>
   </div>;
 }
