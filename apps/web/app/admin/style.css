@@ -152,3 +152,8 @@
   .admin-product-photo-previews { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-product-manager form > button[type="submit"] { width:100%; min-height:48px; }
 }
+
+/* Call out cakes that still need their owner's approved photo uploads. */
+.admin-product-entry .admin-product-photo-warning {
+  display:block; margin-top:7px; color:#a44a25; font-size:12px; line-height:1.45;
+}
