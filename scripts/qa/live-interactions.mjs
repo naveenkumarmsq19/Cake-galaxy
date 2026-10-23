@@ -40,7 +40,7 @@ try {
   });
   await check("Product photo gallery and full view",async()=>{
     await page.goto(BASE+"/product/?id="+encodeURIComponent(product.id),{waitUntil:"domcontentloaded"});
-    await page.getByRole("heading",{name:product.name}).waitFor({timeout:10000});
+    await page.getByRole("heading",{name:product.name,exact:true}).waitFor({timeout:10000});
     await page.getByRole("button",{name:/View full photo/i}).click();
     const dialog=page.locator("dialog.product-gallery-full-dialog");
     await dialog.waitFor({state:"visible",timeout:5000});
