@@ -14,7 +14,7 @@ import { createAdminRouter } from "./admin.js";
 import { createProductGalleryRouter } from "./gallery.js";
 import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot, deliveryLocation } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
-import { invoiceConfigured, issueInvoice } from "./invoice.js";
+import { invoiceConfigured, issueInvoice, merchantGstRegistered } from "./invoice.js";
 
 const cookieName = "cg_session";
 const hours = 60 * 60 * 1000;
@@ -231,7 +231,8 @@ export function createApp() {
     const session = await findSession(req);
     const testCodEnabled = !!session && testPhoneEnabled(session.phone);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ paymentsEnabled: merchantReady(), testCodEnabled, keyId: merchantReady() ? process.env.RAZORPAY_KEY_ID : "", taxRate: merchantReady() || testCodEnabled ? Number(process.env.GST_RATE_PERCENT || "0") : null });
+    const paymentsEnabled = merchantReady();
+    res.json({ paymentsEnabled, testCodEnabled, gstRegistered: merchantGstRegistered(), keyId: paymentsEnabled ? process.env.RAZORPAY_KEY_ID : "", taxRate: paymentsEnabled || testCodEnabled ? Number(process.env.GST_RATE_PERCENT || "0") : null });
   });
 
   app.post("/api/checkout/orders", authenticated, async (req, res) => {
@@ -286,6 +287,7 @@ export function createApp() {
     if (!Number.isSafeInteger(amount) || amount < 100 || amount > 100_000_000) throw new HttpError(400, "Order total cannot be confirmed.");
     let gst = null;
     if (body.gst) {
+      if (!merchantGstRegistered()) throw new HttpError(400, "GST business invoice is unavailable for this merchant.");
       gst = { gstin: text(body.gst.gstin, 15).toUpperCase(), business: text(body.gst.business, 120), billingAddress: text(body.gst.billingAddress, 250) };
       if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst.gstin)) throw new HttpError(400, "Enter a valid GSTIN.");
     }
@@ -322,7 +324,7 @@ export function createApp() {
     const order = await Order.findOne({ reference: req.params.reference, customerPhone: req.customer }).lean();
     if (!order) throw new HttpError(404, "Order not found.");
     if (order.paymentStatus !== "paid") throw new HttpError(409, "Invoice will be available after payment confirmation.");
-    if (!issueInvoice(order, res)) throw new HttpError(503, "GST invoice details haven't been configured yet.");
+    if (!issueInvoice(order, res)) throw new HttpError(503, "Merchant receipt settings are not configured yet.");
   });
   app.post("/api/orders/:reference/cancellation", authenticated, async (req, res) => {
     const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: { $in: ["paid", "test_cod"] }, status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
