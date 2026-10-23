@@ -84,13 +84,21 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
     }
     return converted;
   }
+  async function putNewPhotosFirst(productId, oldImages, uploadedImages) {
+    const added = uploadedImages.filter(url => !oldImages.includes(url));
+    if (!added.length || !oldImages.length) return;
+    const addedSet = new Set(added);
+    const sorted = [...added, ...uploadedImages.filter(url => !addedSet.has(url))];
+    await request("products/" + encodeURIComponent(productId) + "/images/order", "PUT", { images: sorted });
+  }
   async function sendPhotos(files) {
     if (!currentProduct) throw new Error("Select and save a product before uploading photos.");
     if (files.length < 1 || files.length > 12) throw new Error("Select 1–12 images at a time.");
     try {
       const converted = await compressPhotos(files);
       setUploadProgress("Uploading " + converted.length + " photos…");
-      await uploadImages(currentProduct.id, converted);
+      const result = await uploadImages(currentProduct.id, converted);
+      await putNewPhotosFirst(currentProduct.id, currentPhotos, result.images || []);
     } finally { setUploadProgress(""); }
   }
   async function changeOrder(from,to) {
@@ -145,6 +153,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
           setUploadProgress("Uploading " + compressed.length + " cake photo(s)…");
           const result = await uploadImages(productId, compressed);
           if (!result.images?.length) throw new Error("The server did not confirm your photos.");
+          await putNewPhotosFirst(productId, current?.images || [], result.images);
           setPendingPhotos([]);
         }
         if (publishAfterUpload) {
