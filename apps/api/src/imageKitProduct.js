@@ -37,6 +37,9 @@ export const imagekitPhotoCounts = Object.freeze({
 
 export function imageKitProduct(product) {
   if (!product || process.env.IMAGEKIT_GALLERIES_ENABLED !== "true") return product;
+  // Merchant-uploaded, product-specific gallery photos override static ImageKit
+  // imports. Never replace a newly approved photo with an old seeded image.
+  if (product.images?.some(url => /^\/api\/product-images\/[0-9a-f-]{36}$/i.test(url))) return product;
   const count = imagekitPhotoCounts[product.id];
   if (!count) return product;
   const images = Array.from({ length: count }, (_, i) =>

@@ -84,13 +84,21 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
     }
     return converted;
   }
+  async function putNewPhotosFirst(productId, oldImages, uploadedImages) {
+    const added = uploadedImages.filter(url => !oldImages.includes(url));
+    if (!added.length || !oldImages.length) return;
+    const addedSet = new Set(added);
+    const sorted = [...added, ...uploadedImages.filter(url => !addedSet.has(url))];
+    await request("products/" + encodeURIComponent(productId) + "/images/order", "PUT", { images: sorted });
+  }
   async function sendPhotos(files) {
     if (!currentProduct) throw new Error("Select and save a product before uploading photos.");
     if (files.length < 1 || files.length > 12) throw new Error("Select 1–12 images at a time.");
     try {
       const converted = await compressPhotos(files);
       setUploadProgress("Uploading " + converted.length + " photos…");
-      await uploadImages(currentProduct.id, converted);
+      const result = await uploadImages(currentProduct.id, converted);
+      await putNewPhotosFirst(currentProduct.id, currentPhotos, result.images || []);
     } finally { setUploadProgress(""); }
   }
   async function changeOrder(from,to) {
@@ -145,6 +153,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
           setUploadProgress("Uploading " + compressed.length + " cake photo(s)…");
           const result = await uploadImages(productId, compressed);
           if (!result.images?.length) throw new Error("The server did not confirm your photos.");
+          await putNewPhotosFirst(productId, current?.images || [], result.images);
           setPendingPhotos([]);
         }
         if (publishAfterUpload) {
@@ -174,6 +183,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
       <div className="admin-product-list">{matched.map(p=><div key={p.id} className="admin-product-entry">
         <button type="button" className={editing===p.id?"active":""} onClick={()=>selectProduct(p)}>
           {p.name}<small>{p.category?.[0] ? p.category[0]+" · " : ""}₹{(Number(p.price||0)/100).toLocaleString("en-IN")} · {p.deletedAt?"Deleted":p.active?"Live":"Disabled"}</small>
+          {p.id === "menu-chocolate-and-oreo" && !p.images?.some(url => /^\/api\/product-images\//.test(url)) && <small className="admin-product-photo-warning">Choco Oreo needs original product photos · upload to replace old cover</small>}
         </button>
         {isSuperAdmin && !p.deletedAt && <>
           <button type="button" className="admin-ghost" disabled={busy} onClick={()=>selectProduct(p)}>Edit</button>
@@ -230,6 +240,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
       <h2>Product photo gallery</h2>
       <p className="admin-photo-note">Select an existing product above, then choose multiple photos. Your browser compresses each photo below 2 MB, and the server compresses again before storing it in MongoDB. Maximum 16 images per product.</p>
       {!currentProduct ? <p className="admin-muted">Select a product from the list to upload its photos.</p> : <>
+        {currentProduct.id === "menu-chocolate-and-oreo" && !currentPhotos.some(url => /^\/api\/product-images\//.test(url)) && <p className="admin-note" role="status">Choco Oreo's original gallery was not included in the 202-image ZIP. Upload approved Choco Oreo photos under Edit Product → Choose Photos. Saving replaces the old cover photo on the store.</p>}
         <h3>{currentProduct.name} – {currentPhotos.length} image(s)</h3>
         <div className="admin-gallery-grid">{currentPhotos.map((url,i)=><div className="admin-gallery-image" key={url}>
           <img src={adminPreview(url)} alt={currentProduct.name+" image "+(i+1)} loading="lazy"/>
