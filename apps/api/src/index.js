@@ -6,6 +6,7 @@ import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
 import { bootstrapSuperAdmin, ensureBaseServiceAreas } from "./bootstrap.js";
 import { applyApprovedLaunchCatalogue } from "./approvedCatalogue.js";
+import { paymentReadiness } from "./paymentReadiness.js";
 
 config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -52,6 +53,9 @@ async function start() {
   if (adminSetup === "missing") process.stdout.write("Admin setup pending: set ADMIN_BOOTSTRAP_EMAIL and a 12–128 character ADMIN_BOOTSTRAP_PASSWORD once.\n");
   if (adminSetup === "invalid") process.stderr.write("Admin setup skipped: provide a valid email and a 12–128 character password. Customer API will continue running.\n");
   if (adminSetup === "conflict") process.stderr.write("Admin setup skipped: that email belongs to another account. Customer API will continue running.\n");
+
+  const payment = paymentReadiness();
+  process.stdout.write("Cake Galaxy payment readiness: " + (payment.ready ? "READY" : "BLOCKED") + "; missing checks: " + (payment.missing.join(", ") || "none") + "\n");
 
   const port = Number(process.env.PORT || 4000);
   const server = createApp().listen(port, () => process.stdout.write("Cake Galaxy API listening on port " + port + "\n"));
