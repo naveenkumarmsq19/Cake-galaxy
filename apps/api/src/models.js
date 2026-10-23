@@ -22,9 +22,18 @@ const productSchema = new mongoose.Schema({
   id: { type: String, unique: true, required: true },
   name: String, price: Number, images: { type: [String], default: [] }, menuCategory: String, variantPrices: { type: Map, of: Number, default: {} }, variantLabels: { type: Map, of: String, default: {} }, category: [String], flavour: String, image: String,
   badge: String, description: String, weights: [Number], unit: String, eggless: Boolean,
+  categoryMode: { type: String, enum: ["auto", "manual"], default: "auto" },
   photo: { type: Boolean, default: false }, active: { type: Boolean, default: true },
   menuImported: { type: Boolean, default: false }, deletedAt: { type: Date, default: null },
   leadDays: { type: Number, min: 0, max: 31, default: 0 }
+}, options);
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true, trim: true },
+  slug: { type: String, required: true, unique: true },
+  keywords: { type: [String], default: [] },
+  image: { type: String, default: "" },
+  sortOrder: { type: Number, default: 100 },
+  active: { type: Boolean, default: true }
 }, options);
 const areaSchema = new mongoose.Schema({
   pincode: { type: String, unique: true, required: true },
@@ -106,6 +115,7 @@ productImageSchema.index({ productId: 1, hash: 1 });
 const catalogueReleaseSchema = new mongoose.Schema({ key: { type: String, unique: true, required: true }, appliedAt: Date }, options);
 export const CatalogueRelease = mongoose.model("CatalogueRelease", catalogueReleaseSchema);
 export const Product = mongoose.model("Product", productSchema);
+export const Category = mongoose.model("Category", categorySchema);
 export const ProductImage = mongoose.model("ProductImage", productImageSchema);
 export const ServiceArea = mongoose.model("ServiceArea", areaSchema);
 export const Branch = mongoose.model("Branch", branchSchema);
