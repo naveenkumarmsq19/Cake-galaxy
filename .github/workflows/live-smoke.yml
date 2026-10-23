@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/live-smoke.yml'
       - 'scripts/qa/live-smoke.mjs'
+      - 'scripts/qa/live-interactions.mjs'
   workflow_dispatch:
 jobs:
   smoke:
@@ -24,6 +25,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test production public pages + API + catalog cover images
         run: node scripts/qa/live-smoke.mjs
+      - name: Test safe interactive customer flows and mobile gallery
+        if: always()
+        run: node scripts/qa/live-interactions.mjs
       - name: Publish audit report and screenshots
         if: always()
         uses: actions/upload-artifact@v4
