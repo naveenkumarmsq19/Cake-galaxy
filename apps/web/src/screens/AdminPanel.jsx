@@ -77,7 +77,7 @@ export default function AdminPanel() {
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("Overview");
   const [login, setLogin] = useState({ email: "", password: "" });
-  const [data, setData] = useState({ summary: {}, orders: [], requests: [], branches: [], areas: [], users: [], products: [], categories: [], categories: [] });
+  const [data, setData] = useState({ summary: {}, orders: [], requests: [], branches: [], areas: [], users: [], products: [], categories: [] });
   const [branchDraft, setBranchDraft] = useState({ code: "", name: "", address: "", basePincode: "" });
   const [coverageDraft, setCoverageDraft] = useState({ pincode: "", branchId: "", fee: "49" });
   const [managerDraft, setManagerDraft] = useState({ name: "", email: "", password: "", branchId: "" });
@@ -178,7 +178,7 @@ export default function AdminPanel() {
 
   async function signOut() {
     setError(""); setBusy(true);
-    try { await request("logout", "POST"); csrf.current = ""; setUser(null); setData({ summary: {}, orders: [], requests: [], branches: [], areas: [], users: [], products: [] }); }
+    try { await request("logout", "POST"); csrf.current = ""; setUser(null); setData({ summary: {}, orders: [], requests: [], branches: [], areas: [], users: [], products: [], categories: [] }); }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
