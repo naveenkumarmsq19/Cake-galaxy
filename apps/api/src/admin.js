@@ -303,7 +303,7 @@ export function createAdminRouter() {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new HttpError(400, "Use lowercase letters, numbers and dashes for product ID.");
     const changes = productChanges(req.body);
     await assignProductCategory(changes, req.body);
-    if (!changes.name || !changes.flavour || !changes.category?.length || !changes.weights?.length || !changes.price || !changes.unit || !changes.image) throw new HttpError(400, "Add name, flavour, category, size, price, unit and image before saving.");
+    if (!changes.name || !changes.flavour || !changes.category?.length || !changes.weights?.length || !changes.price || !changes.unit) throw new HttpError(400, "Add name, flavour, category, size, price and unit before saving.");
     const product = await Product.create({ ...changes, id, active: false, deletedAt: null });
     res.status(201).json({ product });
   });

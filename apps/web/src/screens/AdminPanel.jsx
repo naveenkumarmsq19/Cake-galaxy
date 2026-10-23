@@ -152,7 +152,7 @@ export default function AdminPanel() {
   async function execute(action, success = "Saved") {
     setError(""); setNotice(""); setBusy(true);
     try { await action(); if (user) await refresh(user.role); setNotice(success); }
-    catch (err) { setError(err.message); }
+    catch (err) { if (user) await refresh(user.role).catch(() => {}); setError(err.message); }
     finally { setBusy(false); }
   }
 

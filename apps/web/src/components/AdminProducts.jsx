@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", image: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
+const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
 const entries = (value) => Object.entries(value?.toJSON?.() || value || {});
 const formatMap = (value, asRupees = false) => entries(value).map(([key, n]) =>
   key.replace(/^w_/, "").replace("_", ".") + ":" + (asRupees ? (Number(n) / 100).toFixed(2).replace(/\.00$/, "") : n)
@@ -25,7 +25,7 @@ function parseMap(raw, asRupees = false) {
   return map;
 }
 function fromProduct(p) {
-  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: p.category?.[0] || "", categoryMode: p.categoryMode || "auto", flavour: p.flavour || "", image: p.image || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", leadDays: String(p.leadDays || 0), description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
+  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: p.category?.[0] || "", categoryMode: p.categoryMode || "auto", flavour: p.flavour || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", leadDays: String(p.leadDays || 0), description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
 }
 async function toSmallWebp(file) {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("Use JPG, PNG or WebP photos only.");
@@ -55,19 +55,43 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [uploadProgress, setUploadProgress] = useState("");
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+  const [photoPreviews, setPhotoPreviews] = useState([]);
+  const [photoError, setPhotoError] = useState("");
+  useEffect(() => {
+    const next = pendingPhotos.map(file => ({ url: URL.createObjectURL(file), name: file.name }));
+    setPhotoPreviews(next);
+    return () => next.forEach(photo => URL.revokeObjectURL(photo.url));
+  }, [pendingPhotos]);
   const currentProduct = products.find(p=>p.id===editing);
   const currentPhotos = currentProduct?.images || [];
+  function choosePhotos(list) {
+    const files = [...list];
+    if (files.length > 12) { setPhotoError("Choose up to 12 photos at a time."); return; }
+    if (files.length + currentPhotos.length > 16) { setPhotoError("A cake can have up to 16 photos in total."); return; }
+    if (files.some(file => !["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 15 * 1024 * 1024)) {
+      setPhotoError("Use JPG, PNG or WebP files under 15 MB each.");
+      return;
+    }
+    setPendingPhotos(files);
+    setPhotoError("");
+  }
+  async function compressPhotos(files) {
+    const converted = [];
+    for (let i=0; i<files.length; i++) {
+      setUploadProgress("Compressing photo " + (i+1) + " / " + files.length + "…");
+      converted.push(await toSmallWebp(files[i]));
+    }
+    return converted;
+  }
   async function sendPhotos(files) {
     if (!currentProduct) throw new Error("Select and save a product before uploading photos.");
     if (files.length < 1 || files.length > 12) throw new Error("Select 1–12 images at a time.");
-    const converted=[];
-    for (let i=0;i<files.length;i++) {
-      setUploadProgress("Compressing "+(i+1)+" / "+files.length+" images…");
-      converted.push(await toSmallWebp(files[i]));
-    }
-    setUploadProgress("Uploading "+converted.length+" compressed images…");
-    await uploadImages(currentProduct.id,converted);
-    setUploadProgress("");
+    try {
+      const converted = await compressPhotos(files);
+      setUploadProgress("Uploading " + converted.length + " photos…");
+      await uploadImages(currentProduct.id, converted);
+    } finally { setUploadProgress(""); }
   }
   async function changeOrder(from,to) {
     const next=[...currentPhotos];
@@ -83,11 +107,14 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
     if (filter !== "deleted" && p.deletedAt) return false;
     return (p.name + " " + p.id + " " + (p.category || []).join(" ")).toLowerCase().includes(search.toLowerCase());
   }), [products, filter, search]);
-  const selectProduct = p => { setEditing(p.id); setDraft(fromProduct(p)); };
-  const startNew = () => { setEditing(""); setDraft(empty); };
+  const clearPhotoSelection = () => { setPendingPhotos([]); setPhotoError(""); setUploadProgress(""); };
+  const selectProduct = p => { setEditing(p.id); setDraft(fromProduct(p)); clearPhotoSelection(); };
+  const startNew = () => { setEditing(""); setDraft(empty); clearPhotoSelection(); };
   const change = (key, value) => setDraft(previous => ({ ...previous, [key]: value }));
   function save(event) {
     event.preventDefault();
+    if (!editing && !pendingPhotos.length) { setPhotoError("Choose at least one cake photo before creating a product."); return; }
+    if (photoError) return;
     execute(async () => {
       const sizes = draft.weights.split(",").map(v => Number(v.trim()));
       if (!sizes.length || sizes.some(v => !Number.isFinite(v) || v <= 0)) throw new Error("Enter valid sizes.");
@@ -96,17 +123,39 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
       const labels = parseMap(draft.variantLabels);
       if (draft.unit === "menu" && sizes.some(w => !prices["w_" + String(w).replace(".", "_")] || !labels["w_" + String(w).replace(".", "_")])) throw new Error("Each printed-menu size needs a label and exact price.");
       if (draft.categoryMode === "manual" && !categories.some(c => c.active && c.name === draft.category)) throw new Error("Choose an enabled category.");
-      const payload = { name: draft.name, flavour: draft.flavour, price: Math.round(Number(draft.price) * 100),
-        unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels, leadDays: Number(draft.leadDays),
-        categoryMode: draft.categoryMode, ...(draft.categoryMode === "manual" ? { category: [draft.category] } : {}), badge: draft.badge,
-        description: draft.description, image: draft.image, eggless: draft.eggless,
-        photo: draft.photo, active: draft.active };
+      const productId = editing || draft.id;
       const current = editing ? products.find(p => p.id === editing) : null;
       if (current?.deletedAt) throw new Error("Restore the deleted product before editing.");
-      await request(editing ? "products/" + encodeURIComponent(editing) : "products", editing ? "PATCH" : "POST",
-        editing ? payload : { ...payload, id: draft.id });
-      if (!editing) startNew();
-    }, editing ? "Product updated" : "New product created disabled");
+      if (pendingPhotos.length + (current?.images?.length || 0) > 16) throw new Error("Maximum 16 images per product.");
+      const publishAfterUpload = draft.active && pendingPhotos.length > 0 && !current?.active && !(current?.images?.length);
+      const payload = {
+        name: draft.name, flavour: draft.flavour, price: Math.round(Number(draft.price) * 100),
+        unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels, leadDays: Number(draft.leadDays),
+        categoryMode: draft.categoryMode, ...(draft.categoryMode === "manual" ? { category: [draft.category] } : {}),
+        badge: draft.badge, description: draft.description,
+        eggless: draft.eggless, photo: draft.photo, active: publishAfterUpload ? false : draft.active
+      };
+      let created = false;
+      try {
+        await request(editing ? "products/" + encodeURIComponent(editing) : "products", editing ? "PATCH" : "POST",
+          editing ? payload : { ...payload, id: productId });
+        if (!editing) { created = true; setEditing(productId); setDraft(previous => ({ ...previous, active: false })); }
+        if (pendingPhotos.length) {
+          const compressed = await compressPhotos(pendingPhotos);
+          setUploadProgress("Uploading " + compressed.length + " cake photo(s)…");
+          const result = await uploadImages(productId, compressed);
+          if (!result.images?.length) throw new Error("The server did not confirm your photos.");
+          setPendingPhotos([]);
+        }
+        if (publishAfterUpload) {
+          await request("products/" + encodeURIComponent(productId), "PATCH", { active: true });
+          setDraft(previous => ({ ...previous, active: true }));
+        }
+      } catch (error) {
+        if (created) throw new Error("Product draft saved as disabled, but photo upload or publishing failed. Select this product and retry your photos. " + error.message);
+        throw error;
+      } finally { setUploadProgress(""); }
+    }, editing ? "Product and photos saved" : "Product created and photos uploaded");
   }
   return <div className="admin-product-manager">
     <div className="admin-card">
@@ -150,7 +199,20 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
         <label className="admin-wide">Option labels (code:name)<input placeholder="1:Pastry, 2:Small, 3:Medium" value={draft.variantLabels} onChange={e=>change("variantLabels",e.target.value)}/></label>
         <label>Preparation notice (days)<input type="number" min="0" max="31" step="1" value={draft.leadDays} onChange={e=>change("leadDays",e.target.value)}/></label>
         <label>Product badge<input maxLength={100} value={draft.badge} onChange={e=>change("badge",e.target.value)}/></label>
-        <label className="admin-wide">Product photo URL (HTTPS or /images/)<input required value={draft.image} onChange={e=>change("image",e.target.value)}/></label>
+        <div className="admin-wide admin-product-photo-picker">
+          <label className="admin-photo-upload-label" htmlFor="admin-new-product-photos">
+            Product photos {editing ? "(add more, optional)" : "(required)"}
+            <input id="admin-new-product-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple
+              disabled={busy || (editing && currentPhotos.length >= 16)}
+              onChange={event => { choosePhotos(event.target.files || []); event.target.value = ""; }}/>
+          </label>
+          <p className="admin-muted">Choose photos from your phone or computer. JPG, PNG or WebP; max 12 at once, 16 total. Images are compressed and uploaded when you save. The first image becomes the cover.</p>
+          {photoError && <p className="admin-alert" role="alert">{photoError}</p>}
+          {photoPreviews.length > 0 && <div className="admin-product-photo-previews" aria-label="Photos selected for upload">
+            {photoPreviews.map((photo, index) => <div key={photo.url}><img src={photo.url} alt={"Selected cake photo " + (index+1)}/><small>{index === 0 && !currentPhotos.length ? "Cover · " : ""}{photo.name}</small></div>)}
+          </div>}
+          {pendingPhotos.length > 0 && <button type="button" className="admin-text" onClick={clearPhotoSelection}>Clear selected photos</button>}
+        </div>
         <label className="admin-wide">Description<textarea maxLength={1000} value={draft.description} onChange={e=>change("description",e.target.value)}/></label>
       </div>
       <div className="admin-checks">
@@ -159,7 +221,10 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
         <label><input type="checkbox" checked={draft.photo} onChange={e=>change("photo",e.target.checked)}/> Customer photo upload</label>
       </div>
       {draft.unit==="menu" && <p className="admin-muted">Menu codes: 1=Pastry, 2=Small, 3=Medium. They are not kg weights. PDF extra charges are shown on the menu only; they are not automatically charged at checkout.</p>}
-      <button type="submit" className="admin-primary" disabled={busy||Boolean(products.find(p=>p.id===editing)?.deletedAt)}>Save product</button>
+      {uploadProgress && <p className="admin-photo-note" role="status">{uploadProgress}</p>}
+      <button type="submit" className="admin-primary" disabled={busy||Boolean(products.find(p=>p.id===editing)?.deletedAt)}>
+        {busy ? "Saving photos…" : editing ? "Save product & upload photos" : "Create product & upload photos"}
+      </button>
     </form>}
     {isSuperAdmin && <div className="admin-card admin-gallery-wrap">
       <h2>Product photo gallery</h2>
