@@ -529,3 +529,10 @@ input::placeholder,textarea::placeholder { color: #90968e; }
  .admin-order-alert-actions { margin-top:12px; }
  .admin-order-alert-actions button { flex:1 1 150px; }
 }
+
+/* Emergency order siren volume control */
+.admin-siren-volume { display:flex; flex-wrap:wrap; align-items:center; gap:11px; padding-top:13px; margin-top:12px; border-top:1px solid #d6d9d1; }
+.admin-siren-volume label { display:flex; gap:8px; align-items:center; font-size:14px; font-weight:600; white-space:nowrap; }
+.admin-siren-volume input[type="range"] { width:clamp(130px,30vw,260px); accent-color:#c14322; cursor:pointer; min-height:32px; }
+.admin-siren-volume span { color:#6d594e; font-size:12px; }
+@media(max-width:600px) { .admin-siren-volume { align-items:flex-start; } .admin-siren-volume input[type="range"] { flex:1 1 100%; width:100%; } .admin-siren-volume span { flex-basis:100%; } }

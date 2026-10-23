@@ -1,50 +1,84 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { playEmergencySiren } from "./adminSiren";
 
 const frequencySeconds = 12;
+const savedVolumeKey = "cakegalaxy.admin.emergency-volume";
 
 export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   const [orders, setOrders] = useState([]);
   const [count, setCount] = useState(0);
   const [enabled, setEnabled] = useState(false);
+  const [volume, setVolume] = useState(85);
+  const volumeRef = useRef(85);
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const sound = useRef(null);
+  const stopCurrent = useRef(null);
   const lastSignature = useRef("");
 
-  const beep = useCallback(() => {
+  const stopSiren = useCallback(() => {
+    stopCurrent.current?.();
+    stopCurrent.current = null;
+  }, []);
+
+  const siren = useCallback(() => {
     const audio = sound.current;
     if (!audio || audio.state !== "running") return;
-    for (const [index, pitch] of [880, 1100, 880].entries()) {
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      const start = audio.currentTime + index * 0.22;
-      osc.type = "sine";
-      osc.frequency.value = pitch;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.20, start + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
-      osc.connect(gain).connect(audio.destination);
-      osc.start(start);
-      osc.stop(start + 0.19);
-    }
-  }, []);
+    stopSiren();
+    stopCurrent.current = playEmergencySiren(audio, volumeRef.current / 100);
+  }, [stopSiren]);
+
+  async function prepareAudio() {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) throw new Error("Your browser does not support alert audio.");
+    if (!sound.current || sound.current.state === "closed") sound.current = new Context();
+    await sound.current.resume();
+    if (sound.current.state !== "running") throw new Error("Browser blocked sound. Tap again or allow site audio.");
+    return sound.current;
+  }
 
   async function enableAudio() {
     try {
-      const Context = window.AudioContext || window.webkitAudioContext;
-      if (!Context) throw new Error("Browser audio isn't supported.");
-      if (!sound.current) sound.current = new Context();
-      await sound.current.resume();
-      if (sound.current.state !== "running") throw new Error("Browser blocked sound. Tap again or allow audio.");
+      await prepareAudio();
       setEnabled(true);
       setWarning("");
-      if (count > 0) beep();
     } catch (e) {
       setWarning(e.message || "Enable sound after interacting with the page.");
     }
   }
+
+  async function previewSiren() {
+    try {
+      const audio = await prepareAudio();
+      stopSiren();
+      stopCurrent.current = playEmergencySiren(audio, volume / 100);
+      setWarning("");
+    } catch (e) {
+      setWarning(e.message || "Could not play the emergency siren.");
+    }
+  }
+
+  function mute() {
+    setEnabled(false);
+    stopSiren();
+  }
+
+  function adjustVolume(value) {
+    const next = Math.min(100, Math.max(25, Number(value) || 85));
+    volumeRef.current = next;
+    setVolume(next);
+    try { localStorage.setItem(savedVolumeKey, String(next)); } catch { /* Private browsing. */ }
+  }
+
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(savedVolumeKey));
+      if (saved >= 25 && saved <= 100) { volumeRef.current = saved; setVolume(saved); }
+    } catch { /* Storage is optional. */ }
+  }, []);
+
   const refreshAttention = useCallback(async () => {
     const data = await request("orders/attention");
     const list = data.orders || [];
@@ -63,7 +97,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
       if (running || !alive) return;
       running = true;
       try { await refreshAttention(); }
-      catch (e) { if (alive) setError("Order alerts cannot connect. Check your admin session or network."); }
+      catch { if (alive) setError("Order alerts cannot connect. Check your admin session or network."); }
       finally { running = false; }
     }
     poll();
@@ -71,30 +105,44 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
     return () => { alive = false; clearInterval(interval); };
   }, [refreshAttention]);
 
+  const hasPendingOrders = count > 0;
   useEffect(() => {
-    if (!enabled || count <= 0) return;
-    beep();
-    const interval = setInterval(beep, frequencySeconds * 1000);
-    return () => clearInterval(interval);
-  }, [enabled, count, beep]);
+    if (!enabled || !hasPendingOrders) {
+      stopSiren();
+      return;
+    }
+    siren();
+    const interval = setInterval(siren, frequencySeconds * 1000);
+    return () => { clearInterval(interval); stopSiren(); };
+  }, [enabled, hasPendingOrders, siren, stopSiren]);
 
-  useEffect(() => () => { sound.current?.close().catch(() => {}); }, []);
+  useEffect(() => () => {
+    stopSiren();
+    sound.current?.close().catch(() => {});
+  }, [stopSiren]);
 
   return <div className={"admin-order-alerts" + (count > 0 ? " has-pending" : "")} role="region" aria-label="New orders awaiting acceptance">
     <div className="admin-order-alert-main">
       <div>
-        <strong>{count > 0 ? "🔔 "+count+" new order"+(count===1?"":"s")+" awaiting acceptance" : "Order alerts are monitoring"}</strong>
-        <p>{count > 0 ? "Sound repeats every 12 seconds until the orders are accepted. Only paid/test orders trigger alerts." : "No new paid orders are waiting for acceptance."}</p>
+        <strong>{count > 0 ? "🚨 "+count+" new order"+(count===1?"":"s")+" awaiting acceptance" : "Order alerts are monitoring"}</strong>
+        <p>{count > 0 ? "Emergency-style siren repeats every 12 seconds until orders are accepted. Only paid/test orders trigger alerts." : "No new paid orders are waiting for acceptance."}</p>
         {count > 0 && <p className="admin-alert-refs">{orders.slice(0,4).map(x=>"#"+x.reference).join(" · ")}{count > 4?" · and more":""}</p>}
-        {warning && <p className="admin-alert-warning">{warning}</p>}
+        {warning && <p className="admin-alert-warning" role="alert">{warning}</p>}
         {error && <p className="admin-alert-warning" role="alert">{error}</p>}
       </div>
       <div className="admin-order-alert-actions">
-        {!enabled && <button type="button" className="admin-primary" onClick={enableAudio}>Enable repeating sound</button>}
-        {enabled && <button type="button" className="admin-ghost" onClick={()=>setEnabled(false)}>Mute alerts</button>}
+        {!enabled ? <button type="button" className="admin-primary" onClick={enableAudio}>Enable siren alerts</button>
+          : <button type="button" className="admin-ghost" onClick={mute}>Mute siren</button>}
+        <button type="button" className="admin-ghost" onClick={previewSiren}>▶ Test siren</button>
         {count > 0 && <button type="button" className="admin-primary" onClick={()=>setTab("Orders")}>Review &amp; accept</button>}
       </div>
     </div>
-    <small>Keep the Admin page open for sound alerts. Background browsers may throttle sound or polling; this is not a push notification when the page is closed.</small>
+    <div className="admin-siren-volume">
+      <label htmlFor="cake-siren-volume">Siren volume <strong>{volume}%</strong></label>
+      <input id="cake-siren-volume" type="range" min="25" max="100" step="5" value={volume}
+        onChange={e=>adjustVolume(e.target.value)} aria-label="Emergency siren volume"/>
+      <span>Test at a comfortable volume before using 100%.</span>
+    </div>
+    <small>Keep Admin open for audible alerts. Your device/browser volume also affects loudness; background tabs may be throttled, and closing the page stops sound.</small>
   </div>;
 }
