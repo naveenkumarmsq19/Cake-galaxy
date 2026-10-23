@@ -27,7 +27,6 @@ export async function applyApprovedLaunchCatalogue() {
         $setOnInsert: {
           image: existingMenu?.image || "/images/celebration.jpg", images: [],
           badge: "New on Cake Galaxy",
-          description: "Choose your cake weight. Photo is illustrative until actual product photos are uploaded. Please confirm ingredients and design with the bakery.",
           leadDays: cake.id === "menu-blueberry-cheese-cake" ? 1 : 0
         }
       }
