@@ -17,7 +17,8 @@ export function useStore() {
 }
 
 export function StoreProvider({ children }) {
-  const [catalog, setCatalog] = useState([]); // Never expose unapproved sample products while catalogue API loads.
+  const [catalog, setCatalog] = useState([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false); // Never expose unapproved sample products while catalogue API loads.
   const [cart, setCart] = useState([]);
   const cartRef = useRef([]);
   const [hydrated, setHydrated] = useState(false);
@@ -106,6 +107,7 @@ export function StoreProvider({ children }) {
     api("/catalog", { skipCsrf: true }).then((data) => {
       if (Array.isArray(data.products)) {
         setCatalog(data.products);
+        setCatalogLoaded(true);
         const available = new Map(data.products.map((product) => [product.id, product]));
         const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)));
         if (valid.length !== cartRef.current.length) {
@@ -114,7 +116,7 @@ export function StoreProvider({ children }) {
           try { localStorage.setItem(basketKey, JSON.stringify(valid)); } catch {}
         }
       }
-    }).catch(() => {});
+    }).catch(() => { setCatalogLoaded(true); });
   }, []);
 
   function saveCart(next) {
@@ -149,7 +151,7 @@ export function StoreProvider({ children }) {
   const discountTotal = cart.reduce((sum, item) => sum + discountAmount(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
   const subtotal = subtotalBeforeDiscount - discountTotal;
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, catalogLoaded, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
