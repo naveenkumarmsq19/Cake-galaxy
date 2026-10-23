@@ -13,6 +13,13 @@ test("ImageKit gallery integration only switches on after explicit upload-comple
     assert.equal(updated.images.length, 7);
     assert.equal(updated.image, imagekitEndpoint + "/cake-galaxy/products/menu-black-forest/image-01.webp");
     assert.equal(updated.images.at(-1), imagekitEndpoint + "/cake-galaxy/products/menu-black-forest/image-07.webp");
+    const merchantPhoto = "/api/product-images/12345678-1234-1234-1234-123456789abc";
+    const manual = { id: "menu-black-forest", image: merchantPhoto, images: [merchantPhoto] };
+    assert.deepEqual(imageKitProduct(manual), manual, "New merchant photos must override imported ImageKit pictures");
+    const chocoOreo = { id: "menu-chocolate-and-oreo", image: "/images/old-oreo.jpg", images: [] };
+    assert.deepEqual(imageKitProduct(chocoOreo), chocoOreo, "Do not substitute Oreo Forest photos for Choco Oreo");
+    const uploadedChocoOreo = { ...chocoOreo, image: merchantPhoto, images: [merchantPhoto] };
+    assert.deepEqual(imageKitProduct(uploadedChocoOreo), uploadedChocoOreo);
     assert.deepEqual(imageKitProduct({id:"menu-classic-chocolate-truffle",image:"legacy.png"}),{id:"menu-classic-chocolate-truffle",image:"legacy.png"});
     assert.equal(imagekitPhotoCounts["menu-fruit-almond"],8);
     assert.equal(imagekitPhotoCounts["menu-white-forest-truffle"],6);
