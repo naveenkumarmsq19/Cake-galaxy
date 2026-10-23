@@ -31,3 +31,9 @@ export function availableDeliverySlots(day, now=new Date(), minPrepMinutes=0) {
   if (day>clock.date) return [...deliverySlots];
   return deliverySlots.filter((_,index) => slotStarts[index] >= clock.minutes + minPrepMinutes);
 }
+
+// Once all of today's slots have started, remove today from the picker entirely.
+export function firstAvailableDate(now=new Date()) {
+  const today = indiaNow(now).date;
+  return availableDeliverySlots(today,now).length ? today : addCalendarDays(today,1);
+}

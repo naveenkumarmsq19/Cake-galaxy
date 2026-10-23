@@ -123,7 +123,7 @@ export default function MapPinPicker({ value, onChange, onMapReady }) {
   return <section className="cake-map-picker" aria-label="Delivery map pin">
     <div className="cake-map-title">
       <div><h3>Pin your delivery location</h3><p>Tap the exact building on the map or drag the red marker. You can also use your current location.</p></div>
-      <button type="button" className="button outline" onClick={useMyLocation} disabled={locating || loading}>
+      <button type="button" className="button outline" onClick={useMyLocation} disabled={locating || loading || !!error}>
         {locating ? "Finding location…" : "📍 Use my location"}
       </button>
     </div>
