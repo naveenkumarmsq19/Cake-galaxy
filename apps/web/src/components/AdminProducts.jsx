@@ -127,7 +127,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
       const current = editing ? products.find(p => p.id === editing) : null;
       if (current?.deletedAt) throw new Error("Restore the deleted product before editing.");
       if (pendingPhotos.length + (current?.images?.length || 0) > 16) throw new Error("Maximum 16 images per product.");
-      const publishAfterUpload = draft.active && pendingPhotos.length > 0 && !(current?.images?.length);
+      const publishAfterUpload = draft.active && pendingPhotos.length > 0 && !current?.active && !(current?.images?.length);
       const payload = {
         name: draft.name, flavour: draft.flavour, price: Math.round(Number(draft.price) * 100),
         unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels, leadDays: Number(draft.leadDays),
