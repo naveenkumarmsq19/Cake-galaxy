@@ -7,7 +7,19 @@ export const galleryPhotos = product => product?.images?.length ? product.images
 export default function ProductGallery({ product }) {
   const images = galleryPhotos(product);
   const [active,setActive] = useState(0);
+  const [aspectRatios,setAspectRatios] = useState({});
   const list = useRef(null);
+  const fullPhotoDialog = useRef(null);
+  const selectedSrc = images[active] || images[0];
+  const selectedAspectRatio = aspectRatios[selectedSrc] || 1;
+  const rememberAspectRatio = (src, event) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    if (!naturalWidth || !naturalHeight) return;
+    setAspectRatios(previous => previous[src] ? previous : { ...previous, [src]: naturalWidth / naturalHeight });
+  };
+  const openFullPhoto = () => {
+    if (fullPhotoDialog.current && !fullPhotoDialog.current.open) fullPhotoDialog.current.showModal();
+  };
   useEffect(() => {
     setActive(0);
     list.current?.scrollTo?.({ left: 0, behavior: "instant" });
@@ -18,15 +30,18 @@ export default function ProductGallery({ product }) {
     setActive(next);
   };
   return <div className="product-gallery" aria-label={product.name+" photos"} key={product.id}>
-    <div className="product-gallery-stage">
+    <div className="product-gallery-stage" style={{ aspectRatio: selectedAspectRatio }}>
       <div className="product-gallery-track" ref={list} role="region" aria-roledescription="carousel" aria-label="Cake photos" onScroll={e=>{
         const el=e.currentTarget;
         setActive(Math.max(0,Math.min(images.length-1,Math.round(el.scrollLeft/Math.max(1,el.clientWidth)))));
       }}>
         {images.map((src,i)=><div className="product-gallery-slide" key={src}>
-          <img src={src} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"} draggable="false"/>
+          <img src={src} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"} draggable="false" onLoad={event => rememberAspectRatio(src,event)}/>
         </div>)}
       </div>
+      {selectedSrc && <button type="button" className="product-gallery-view-full" onClick={openFullPhoto} aria-label={"View full photograph of "+product.name}>
+        View full photo
+      </button>}
       {images.length>1 && <>
         <button className="product-gallery-arrow previous" type="button" onClick={()=>go(active-1)} disabled={active===0} aria-label="Previous cake photo">‹</button>
         <button className="product-gallery-arrow next" type="button" onClick={()=>go(active+1)} disabled={active===images.length-1} aria-label="Next cake photo">›</button>
@@ -36,6 +51,17 @@ export default function ProductGallery({ product }) {
     {images.length>1 && <div className="product-gallery-thumbs" aria-label="Choose cake photo">
       {images.map((src,i)=><button type="button" className={i===active?"active":""} key={src} onClick={()=>go(i)} aria-label={"Show photo "+(i+1)} aria-current={i===active?"true":undefined}><img loading="lazy" src={src} alt=""/></button>)}
     </div>}
-    <p className="photo-footnote">Swipe to see different views. Cake colours and decoration can vary slightly.</p>
+    <p className="photo-footnote">Swipe through the photos or select “View full photo” to see the original image without cropping.</p>
+    <dialog ref={fullPhotoDialog} className="product-gallery-full-dialog" aria-label={"Full image of "+product.name}>
+      <div className="product-gallery-full-head">
+        <span>{product.name}{images.length>1 ? " · "+(active+1)+" / "+images.length : ""}</span>
+        <button type="button" className="product-gallery-close" onClick={() => fullPhotoDialog.current?.close()} aria-label="Close full photo">✕</button>
+      </div>
+      {selectedSrc && <img className="product-gallery-full-image" src={selectedSrc} alt={"Full photograph of "+product.name} loading="eager"/>}
+      {images.length>1 && <div className="product-gallery-full-controls">
+        <button type="button" disabled={active===0} onClick={() => go(active-1)}>← Previous</button>
+        <button type="button" disabled={active===images.length-1} onClick={() => go(active+1)}>Next →</button>
+      </div>}
+    </dialog>
   </div>;
 }
