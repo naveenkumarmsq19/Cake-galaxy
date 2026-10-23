@@ -11,6 +11,23 @@ const record = (kind, name, state, detail = "") => {
   console.log(JSON.stringify(item));
 };
 await mkdir("qa-artifacts", { recursive: true });
+// Fail fast when this GitHub runner is unable to reach the LIVE website at all.
+// A blocked probe is an environment limitation, not evidence that the shop is down.
+const probes = await Promise.allSettled(["/", "/api/health"].map(async path => {
+  const response = await fetch(BASE + path, { signal: AbortSignal.timeout(10000) });
+  return { path, status: response.status };
+}));
+console.log("NETWORK_PREFLIGHT " + JSON.stringify(probes.map((r,i) => ({
+  path: ["/", "/api/health"][i], status: r.status === "fulfilled" ? r.value.status : "BLOCKED",
+  error: r.status === "rejected" ? String(r.reason).slice(0,160) : ""
+}))));
+if (!probes.some(r => r.status === "fulfilled")) {
+  report.summary = { passed: 0, failed: 0, blocked: 2, total: 2 };
+  report.errors.push("Runner cannot connect to the live site. No authenticated or public page can be verified from this environment.");
+  await writeFile("qa-artifacts/report.json", JSON.stringify(report,null,2));
+  console.log("QA_SUMMARY " + JSON.stringify(report.summary));
+  process.exit(2);
+}
 const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, ignoreHTTPSErrors: false });
@@ -18,7 +35,7 @@ try {
   let catalog = [];
   for (const endpoint of publicEndpoints) {
     try {
-      const response = await context.request.get(BASE + endpoint, { timeout: 22000 });
+      const response = await context.request.get(BASE + endpoint, { timeout: 12000 });
       let body = null;
       try { body = await response.json(); } catch {}
       const status = response.status();
@@ -44,7 +61,7 @@ try {
     for (const url of urls) {
       const name = width + "px " + url;
       try {
-        const response = await page.goto(BASE + url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        const response = await page.goto(BASE + url, { waitUntil: "domcontentloaded", timeout: 14000 });
         await page.waitForTimeout(1400);
         const values = await page.evaluate(() => ({
           title: document.title,
@@ -77,7 +94,7 @@ try {
       if (!src) { record("image", product.id, "FAIL", "Missing image URL");continue; }
       const url = new URL(src, BASE).href;
       try {
-        const response = await context.request.get(url, { timeout: 15000, headers: { Range: "bytes=0-1023" } });
+        const response = await context.request.get(url, { timeout: 12000, headers: { Range: "bytes=0-1023" } });
         const type = response.headers()["content-type"] || "";
         const ok = response.ok() && type.startsWith("image/");
         record("image", product.id, ok ? "PASS" : "FAIL", "HTTP " + response.status() + "; content-type=" + type);
