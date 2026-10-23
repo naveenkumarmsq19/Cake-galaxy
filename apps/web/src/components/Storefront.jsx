@@ -18,6 +18,7 @@ export function useStore() {
 
 export function StoreProvider({ children }) {
   const [catalog, setCatalog] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false); // Never expose unapproved sample products while catalogue API loads.
   const [cart, setCart] = useState([]);
   const cartRef = useRef([]);
@@ -107,6 +108,7 @@ export function StoreProvider({ children }) {
     api("/catalog", { skipCsrf: true }).then((data) => {
       if (Array.isArray(data.products)) {
         setCatalog(data.products);
+        setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active && data.products.some(product => product.category?.includes(item.name))) : []);
         setCatalogLoaded(true);
         const available = new Map(data.products.map((product) => [product.id, product]));
         const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)));
@@ -151,7 +153,7 @@ export function StoreProvider({ children }) {
   const discountTotal = cart.reduce((sum, item) => sum + discountAmount(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
   const subtotal = subtotalBeforeDiscount - discountTotal;
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, catalogLoaded, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, categories, catalogLoaded, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
@@ -169,7 +171,7 @@ const paths = {
 export function Icon({ name }) { return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>; }
 
 export function Header() {
-  const { count, session, pincode, quote, checkDelivery } = useStore();
+  const { count, session, pincode, quote, checkDelivery, categories } = useStore();
   const path = usePathname();
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [pin, setPin] = useState("");
@@ -194,7 +196,7 @@ export function Header() {
         <div className="header-actions"><Link className="header-action" href="/orders" aria-label="Account"><Icon name="user"/><span>Account</span></Link><Link className="header-action bag-link" href="/cart" aria-label="Shopping bag"><Icon name="bag"/><span>Bag</span>{count > 0 && <b className="cart-count">{count}</b>}</Link></div>
       </div>
       <nav className="category-nav" aria-label="Shop categories"><div className="wrap category-inner">
-        <Link href="/shop">All cakes</Link><Link href="/menu" className={path === "/menu" ? "active" : ""}>Our Menu</Link><Link href="/shop?category=Birthday">Birthday</Link><Link href="/shop?category=Anniversary">Anniversary</Link><Link href="/shop?category=Chocolate">Chocolate cakes</Link><Link href="/shop?category=Photo">Photo cakes</Link><Link href="/shop?category=Kids">Kids' cakes</Link><Link href="/custom">Custom cakes <span>Made for you</span></Link>
+        <Link href="/shop">All cakes</Link><Link href="/menu" className={path === "/menu" ? "active" : ""}>Our Menu</Link>{categories.map(category => <Link key={category.slug} href={"/shop?category="+encodeURIComponent(category.name)}>{category.name}</Link>)}<Link href="/custom">Custom cakes <span>Made for you</span></Link>
       </div></nav>
     </header>
     <nav className="mobile-nav" aria-label="Mobile navigation">{[["/", "home", "Home"], ["/shop", "search", "Cakes"], ["/orders", "orders", "Orders"], ["/cart", "bag", "Bag"]].map(([href, icon, label]) => <Link key={label} href={href} className={path === href ? "active" : ""} aria-current={path === href ? "page" : undefined}><Icon name={icon}/>{label}</Link>)}</nav>
@@ -202,13 +204,13 @@ export function Header() {
   </>;
 }
 
-export function Footer() { return <footer className="site-footer"><div className="wrap footer-grid"><div className="footer-brand"><Link href="/" className="brand" aria-label="Cake Galaxy home"><img className="brand-logo" src="/images/cake-galaxy-sage-logo.webp" alt="" width={66} height={66} loading="lazy" decoding="async"/><span className="brand-wordmark">cake galaxy</span></Link><p>A cake for the little moments.<br/>A centrepiece for the big ones.</p></div><div><h2>Find your cake</h2><Link href="/menu">Full menu & prices</Link><Link href="/shop?category=Birthday">Birthday cakes</Link><Link href="/shop?category=Anniversary">Anniversary cakes</Link><Link href="/custom">Custom creations</Link></div><div><h2>Here to help</h2><Link href="/orders">My orders</Link><Link href="/help">Help & contact</Link><Link href="/policy?type=refund">Cancellation & refunds</Link></div><div><h2>The details</h2><Link href="/policy?type=delivery">Delivery information</Link><Link href="/policy?type=terms">Terms & conditions</Link><Link href="/policy?type=privacy">Privacy</Link></div></div><div className="wrap footer-bottom"><span>© {new Date().getFullYear()} Cake Galaxy</span><span>UPI / Cards / Netbanking</span></div></footer>; }
+export function Footer() { const { categories } = useStore(); return <footer className="site-footer"><div className="wrap footer-grid"><div className="footer-brand"><Link href="/" className="brand" aria-label="Cake Galaxy home"><img className="brand-logo" src="/images/cake-galaxy-sage-logo.webp" alt="" width={66} height={66} loading="lazy" decoding="async"/><span className="brand-wordmark">cake galaxy</span></Link><p>A cake for the little moments.<br/>A centrepiece for the big ones.</p></div><div><h2>Find your cake</h2><Link href="/menu">Full menu & prices</Link>{categories.slice(0, 3).map(category => <Link key={category.slug} href={"/shop?category="+encodeURIComponent(category.name)}>{category.name}</Link>)}<Link href="/custom">Custom creations</Link></div><div><h2>Here to help</h2><Link href="/orders">My orders</Link><Link href="/help">Help & contact</Link><Link href="/policy?type=refund">Cancellation & refunds</Link></div><div><h2>The details</h2><Link href="/policy?type=delivery">Delivery information</Link><Link href="/policy?type=terms">Terms & conditions</Link><Link href="/policy?type=privacy">Privacy</Link></div></div><div className="wrap footer-bottom"><span>© {new Date().getFullYear()} Cake Galaxy</span><span>UPI / Cards / Netbanking</span></div></footer>; }
 
 function answer(message) {
   if (/cancel|refund/i.test(message)) return "Open My orders to request cancellation. Eligibility is reviewed before a refund decision.";
   if (/custom|design|photo/i.test(message)) return "Choose a sample on Custom cakes or upload a reference. We'll confirm the design and price before payment.";
   if (/delivery|pincode|slot/i.test(message)) return "Check your delivery pincode before choosing a date and slot in your bag.";
-  if (/invoice|gst/i.test(message)) return "Add business GST details at checkout. Your invoice becomes available on a confirmed order when billing is configured.";
+  if (/invoice|gst/i.test(message)) return "A receipt is available after a successful payment when merchant billing is configured.";
   return "I can help with delivery, custom cakes, invoices and cancellation. What would you like to know?";
 }
 

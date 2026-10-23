@@ -3,9 +3,10 @@ import { rateLimit } from "express-rate-limit";
 import { createHash, randomBytes, scrypt as rawScrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import mongoose from "mongoose";
-import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Upload } from "./models.js";
+import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, Category, ServiceArea, Upload } from "./models.js";
 import { HttpError, text } from "./validation.js";
 import { registerAdminGalleryRoutes } from "./gallery.js";
+import { suggestCategory, categorySlug, syncAutoCategories } from "./categoryService.js";
 import { registerCancellationAdminRoutes, visibleCancellation } from "./cancellations.js";
 
 const scrypt = promisify(rawScrypt);
@@ -265,6 +266,34 @@ export function createAdminRouter() {
   });
 
   registerAdminGalleryRoutes(router, requireSuper);
+  router.get("/categories", async (_req, res) => {
+    res.json({ categories: await Category.find().sort({ active: -1, sortOrder: 1, name: 1 }).lean() });
+  });
+  router.post("/categories", requireSuper, async (req, res) => {
+    const name = text(req.body?.name, 60);
+    if (name.length < 3) throw new HttpError(400, "Category name must contain at least 3 characters.");
+    const slug = categorySlug(name);
+    if (!slug || slug.length > 80) throw new HttpError(400, "Enter a valid category name.");
+    const changes = categoryChanges(req.body);
+    const category = await Category.create({ ...changes, name, slug, active: true });
+    await syncAutoCategories();
+    res.status(201).json({ category });
+  });
+  router.patch("/categories/:id", requireSuper, async (req, res) => {
+    const current = await Category.findById(objectId(req.params.id));
+    if (!current) throw new HttpError(404, "Category not found.");
+    if (req.body?.name !== undefined) throw new HttpError(400, "Category names are permanent. Create a new category and disable this one instead.");
+    const changes = categoryChanges(req.body);
+    if (current.name === "Signature Cakes" && changes.active === false) throw new HttpError(400, "Signature Cakes must remain enabled as the fallback category.");
+    Object.assign(current, changes);
+    await current.save();
+    if (!current.active) {
+      // Manually mapped products cannot point to a category that the store hides.
+      await Product.updateMany({ categoryMode: "manual", category: current.name }, { $set: { categoryMode: "auto" } });
+    }
+    await syncAutoCategories();
+    res.json({ category: current });
+  });
   router.get("/products", async (_req, res) => {
     const products = await Product.find().sort({ name: 1 }).lean();
     res.json({ products });
@@ -273,6 +302,7 @@ export function createAdminRouter() {
     const id = text(req.body?.id, 80);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new HttpError(400, "Use lowercase letters, numbers and dashes for product ID.");
     const changes = productChanges(req.body);
+    await assignProductCategory(changes, req.body);
     if (!changes.name || !changes.flavour || !changes.category?.length || !changes.weights?.length || !changes.price || !changes.unit || !changes.image) throw new HttpError(400, "Add name, flavour, category, size, price, unit and image before saving.");
     const product = await Product.create({ ...changes, id, active: false, deletedAt: null });
     res.status(201).json({ product });
@@ -283,7 +313,11 @@ export function createAdminRouter() {
       if (!target) throw new HttpError(404, "Product not found.");
       if (!target.active && !(target.images || []).length) throw new HttpError(400, "Upload at least one approved cake photo before enabling this product.");
     }
-    const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: null }, { $set: productChanges(req.body) }, { new: true, runValidators: true });
+    const targetProduct = await Product.findOne({ id: text(req.params.id, 80), deletedAt: null }).lean();
+    if (!targetProduct) throw new HttpError(404, "Product not found.");
+    const changes = productChanges(req.body);
+    await assignProductCategory(changes, req.body, targetProduct);
+    const product = await Product.findOneAndUpdate({ id: targetProduct.id, deletedAt: null }, { $set: changes }, { new: true, runValidators: true });
     if (!product) throw new HttpError(404, "Product not found.");
     res.json({ product });
   });
@@ -351,4 +385,43 @@ function productChanges(body) {
   }
   if (!Object.keys(changes).length) throw new HttpError(400, "No product changes supplied.");
   return changes;
+}
+
+function categoryChanges(body) {
+  const changes = {};
+  if (body?.keywords !== undefined) {
+    if (!Array.isArray(body.keywords) || body.keywords.length > 20) throw new HttpError(400, "Use up to 20 category keywords.");
+    changes.keywords = [...new Set(body.keywords.map(value => text(value, 50).toLowerCase()))];
+  }
+  if (body?.image !== undefined) {
+    const image = text(body.image, 500, false);
+    if (image && !/^https:\/\//.test(image) && !/^\/images\/[a-zA-Z0-9_.-]+$/.test(image)) throw new HttpError(400, "Use an HTTPS category image URL or /images/ path.");
+    changes.image = image;
+  }
+  if (body?.sortOrder !== undefined) {
+    if (!Number.isInteger(body.sortOrder) || body.sortOrder < 0 || body.sortOrder > 1000) throw new HttpError(400, "Category order must be between 0 and 1000.");
+    changes.sortOrder = body.sortOrder;
+  }
+  if (body?.active !== undefined) {
+    if (typeof body.active !== "boolean") throw new HttpError(400, "Invalid category status.");
+    changes.active = body.active;
+  }
+  return changes;
+}
+
+async function assignProductCategory(changes, body, existing = null) {
+  const active = await Category.find({ active: true }).lean();
+  const mode = body?.categoryMode ?? (body?.category !== undefined ? "manual" : existing?.categoryMode || "auto");
+  if (!["auto", "manual"].includes(mode)) throw new HttpError(400, "Choose automatic or manual categories.");
+  if (mode === "manual") {
+    const selected = changes.category ?? existing?.category ?? [];
+    const valid = new Set(active.map(item => item.name));
+    if (!selected.length || selected.some(name => !valid.has(name))) throw new HttpError(400, "Select an enabled category.");
+    changes.category = [...new Set(selected)];
+  } else {
+    const suggested = suggestCategory({ name: changes.name ?? existing?.name, flavour: changes.flavour ?? existing?.flavour }, active);
+    if (!suggested) throw new HttpError(503, "No active shop categories found.");
+    changes.category = [suggested];
+  }
+  changes.categoryMode = mode;
 }

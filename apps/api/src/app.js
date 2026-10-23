@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 import multer from "multer";
 import sharp from "sharp";
 import { addons } from "@cake-galaxy/catalog";
-import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
+import { Customer, Session, LoginChallenge, Product, Category, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
 import { createProductGalleryRouter } from "./gallery.js";
 import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot, deliveryLocation } from "./validation.js";
@@ -140,10 +140,16 @@ export function createApp() {
     res.status(databaseReady ? 200 : 503).json({ ok: databaseReady, database: databaseReady ? "connected" : "unavailable" });
   });
   app.get("/api/catalog", async (_req, res) => {
-    const catalog = await Product.find({ active: true, deletedAt: null }, { _id: 0, __v: 0, active: 0 }).lean();
+    const [catalog, categories] = await Promise.all([
+      Product.find({ active: true, deletedAt: null }, { _id: 0, __v: 0, active: 0 }).lean(),
+      Category.find({ active: true }, { _id: 0, __v: 0, keywords: 0 }).sort({ sortOrder: 1, name: 1 }).lean()
+    ]);
     // ImageKit can be enabled only after every matching photo is confirmed uploaded.
     // Until then existing, already stored product galleries remain unchanged.
-    res.json({ products: catalog.map(imageKitProduct), addons });
+    const enabled = new Set(categories.map(c => c.name));
+    res.json({ products: catalog.map(p => ({
+      ...imageKitProduct(p), category: (p.category || []).filter(name => enabled.has(name))
+    })), categories, addons });
   });
   app.get("/api/delivery", async (req, res) => {
     const pincode = String(req.query.pincode || "");

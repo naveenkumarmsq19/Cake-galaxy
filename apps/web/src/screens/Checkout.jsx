@@ -95,12 +95,11 @@ export function Checkout() {
   const [config, setConfig] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
-  const [gstEnabled, setGstEnabled] = useState(false);
   // One checkout action: Razorpay itself lets customers choose UPI, card or netbanking.
   // Keep the private test-phone checkout working without showing extra payment options.
   const payment = config?.testCodEnabled && !config?.paymentsEnabled ? "test_cod" : "online";
   const attempt = useRef(null);
-  useEffect(() => { api("/checkout/config").then((value) => { setConfig(value); if (!value.gstRegistered) setGstEnabled(false); }).catch((error) => setFeedback(error.message)); }, [session.authenticated, session.phone]);
+  useEffect(() => { api("/checkout/config").then(setConfig).catch((error) => setFeedback(error.message)); }, [session.authenticated, session.phone]);
   useEffect(() => {
     if (hydrated && address?.pincode && !quote?.available) checkDelivery(address.pincode).then((result) => {
       if (result.available === false) setFeedback("Delivery isn't available to this pincode. Please edit your address.");
@@ -120,15 +119,14 @@ export function Checkout() {
     }
     if (!(payment === "test_cod" ? config?.testCodEnabled : config?.paymentsEnabled) || !quote?.available) { setFeedback("This payment option or delivery address isn't available. No charge has been made."); return; }
     setBusy(true);
-    const form = new FormData(event.currentTarget);
     try {
-      const fingerprint = JSON.stringify({ cart, sender, address, delivery, payment, gstEnabled, gstin: form.get("gstin"), business: form.get("business"), billingAddress: form.get("billingAddress") });
+      const fingerprint = JSON.stringify({ cart, sender, address, delivery, payment });
       if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
       const idempotencyKey = attempt.current.key;
       const data = await api("/checkout/orders", { method: "POST", body: {
         items: cart.map(({ productId, size, quantity, flavour, eggless, message, addons, uploadId }) => ({ productId, size, quantity, flavour, eggless, message, addons, uploadId })),
         sender, address, delivery, preferredMethod: payment,
-        gst: gstEnabled ? { gstin: form.get("gstin"), business: form.get("business"), billingAddress: form.get("billingAddress") } : null,
+        gst: null,
         idempotencyKey
       } });
       if (!data.reference || !Number.isSafeInteger(data.amount) || (payment !== "test_cod" && !data.orderId)) throw new Error("Order couldn't be prepared. No charge has been made.");
@@ -152,7 +150,7 @@ export function Checkout() {
     finally { setBusy(false); }
   }
 
-  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Your details</h2><p><strong>{sender.name}</strong><br/>+91 {sender.phone} · Verified</p><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p>{address.location && <p><a className="text-link" href={"https://www.openstreetmap.org/?mlat="+address.location.lat+"&mlon="+address.location.lng+"#map=17/"+address.location.lat+"/"+address.location.lng} target="_blank" rel="noreferrer">View delivery pin ↗</a></p>}<p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><h2>Secure payment</h2>{payment === "test_cod" ? <p className="subtle">Test checkout only. No payment is collected, and no invoice or WhatsApp order update is sent.</p> : <p className="subtle">Tap Pay Now to choose your payment method in Razorpay's secure checkout.</p>}</div><div className="panel"><h2>Billing details</h2>{config?.gstRegistered ? <label className="check-label"><input type="checkbox" checked={gstEnabled} onChange={(event) => setGstEnabled(event.target.checked)}/>Add GST details for a business invoice</label> : <p className="subtle">Cake Galaxy is not GST-registered. No GST is charged; a payment receipt is available after successful payment.</p>}{gstEnabled && config?.gstRegistered && <><div className="field"><label htmlFor="gstin">GSTIN</label><input id="gstin" name="gstin" maxLength={15} required/></div><div className="field"><label htmlFor="business">Registered business name</label><input id="business" name="business" maxLength={120} required/></div><div className="field"><label htmlFor="billingAddress">Business billing address</label><input id="billingAddress" name="billingAddress" maxLength={250} required/></div></>}</div><div className="panel"><label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && payment !== "test_cod" && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !(payment === "test_cod" ? config?.testCodEnabled : config?.paymentsEnabled) || !quote?.available}>{busy ? "Please wait…" : payment === "test_cod" ? "Place test order" : "Pay Now"}</button></div></form></div><Summary taxRate={config?.taxRate} gstRegistered={config?.gstRegistered !== false}/></div></div>;
+  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Your details</h2><p><strong>{sender.name}</strong><br/>+91 {sender.phone} · Verified</p><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p>{address.location && <p><a className="text-link" href={"https://www.openstreetmap.org/?mlat="+address.location.lat+"&mlon="+address.location.lng+"#map=17/"+address.location.lat+"/"+address.location.lng} target="_blank" rel="noreferrer">View delivery pin ↗</a></p>}<p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && payment !== "test_cod" && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !(payment === "test_cod" ? config?.testCodEnabled : config?.paymentsEnabled) || !quote?.available}>{busy ? "Please wait…" : payment === "test_cod" ? "Place test order" : "Pay Now"}</button></div></form></div><Summary taxRate={config?.taxRate} gstRegistered={config?.gstRegistered !== false}/></div></div>;
 }
 
 export function Login() {

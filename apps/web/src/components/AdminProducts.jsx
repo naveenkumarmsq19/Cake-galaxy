@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "Birthday", flavour: "", image: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
+const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", image: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
 const entries = (value) => Object.entries(value?.toJSON?.() || value || {});
 const formatMap = (value, asRupees = false) => entries(value).map(([key, n]) =>
   key.replace(/^w_/, "").replace("_", ".") + ":" + (asRupees ? (Number(n) / 100).toFixed(2).replace(/\.00$/, "") : n)
@@ -25,7 +25,7 @@ function parseMap(raw, asRupees = false) {
   return map;
 }
 function fromProduct(p) {
-  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: (p.category || []).join(", "), flavour: p.flavour || "", image: p.image || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", leadDays: String(p.leadDays || 0), description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
+  return { id: p.id, name: p.name || "", price: String(Number(p.price || 0) / 100), variantPrices: formatMap(p.variantPrices, true), variantLabels: formatMap(p.variantLabels), category: p.category?.[0] || "", categoryMode: p.categoryMode || "auto", flavour: p.flavour || "", image: p.image || "", weights: (p.weights || []).join(","), unit: p.unit || "kg", badge: p.badge || "", leadDays: String(p.leadDays || 0), description: p.description || "", eggless: p.eggless === true, photo: p.photo === true, active: p.active === true };
 }
 async function toSmallWebp(file) {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("Use JPG, PNG or WebP photos only.");
@@ -49,7 +49,7 @@ async function toSmallWebp(file) {
 }
 const adminPreview = url => url.replace(/^\/api\/product-images\//,"/api/admin/product-images/");
 
-export default function AdminProducts({ products, isSuperAdmin, busy, request, uploadImages, importGalleryBundle, execute }) {
+export default function AdminProducts({ products, categories, isSuperAdmin, busy, request, uploadImages, importGalleryBundle, execute }) {
   const [draft, setDraft] = useState(empty);
   const [editing, setEditing] = useState("");
   const [search, setSearch] = useState("");
@@ -95,9 +95,10 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, u
       const prices = parseMap(draft.variantPrices, true);
       const labels = parseMap(draft.variantLabels);
       if (draft.unit === "menu" && sizes.some(w => !prices["w_" + String(w).replace(".", "_")] || !labels["w_" + String(w).replace(".", "_")])) throw new Error("Each printed-menu size needs a label and exact price.");
+      if (draft.categoryMode === "manual" && !categories.some(c => c.active && c.name === draft.category)) throw new Error("Choose an enabled category.");
       const payload = { name: draft.name, flavour: draft.flavour, price: Math.round(Number(draft.price) * 100),
         unit: draft.unit, weights: sizes, variantPrices: prices, variantLabels: labels, leadDays: Number(draft.leadDays),
-        category: draft.category.split(",").map(s => s.trim()).filter(Boolean), badge: draft.badge,
+        categoryMode: draft.categoryMode, ...(draft.categoryMode === "manual" ? { category: [draft.category] } : {}), badge: draft.badge,
         description: draft.description, image: draft.image, eggless: draft.eggless,
         photo: draft.photo, active: draft.active };
       const current = editing ? products.find(p => p.id === editing) : null;
@@ -123,7 +124,7 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, u
       <p className="admin-muted">{matched.length} products</p>
       <div className="admin-product-list">{matched.map(p=><div key={p.id} className="admin-product-entry">
         <button type="button" className={editing===p.id?"active":""} onClick={()=>selectProduct(p)}>
-          {p.name}<small>{p.menuCategory ? p.menuCategory+" · " : p.menuImported?"Printed menu · ":""}₹{(Number(p.price||0)/100).toLocaleString("en-IN")} · {p.deletedAt?"Deleted":p.active?"Live":"Disabled"}</small>
+          {p.name}<small>{p.category?.[0] ? p.category[0]+" · " : ""}₹{(Number(p.price||0)/100).toLocaleString("en-IN")} · {p.deletedAt?"Deleted":p.active?"Live":"Disabled"}</small>
         </button>
         {isSuperAdmin && !p.deletedAt && <>
           <button type="button" className="admin-ghost" disabled={busy} onClick={()=>selectProduct(p)}>Edit</button>
@@ -139,7 +140,9 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, u
         <label>Product ID<input required disabled={Boolean(editing)} placeholder="e.g. menu-rose-cake" value={draft.id} onChange={e=>change("id",e.target.value)}/></label>
         <label>Product name<input required value={draft.name} onChange={e=>change("name",e.target.value)}/></label>
         <label>Flavour<input required value={draft.flavour} onChange={e=>change("flavour",e.target.value)}/></label>
-        <label>Category tags (comma separated)<input required value={draft.category} onChange={e=>change("category",e.target.value)}/></label>
+        <label>Category assignment<select value={draft.categoryMode} onChange={e=>change("categoryMode",e.target.value)}><option value="auto">Automatic (based on name / flavour)</option><option value="manual">Manual category</option></select></label>
+         {draft.categoryMode === "manual" && <label>Category<select required value={draft.category} onChange={e=>change("category",e.target.value)}><option value="">Choose category</option>{categories.filter(c=>c.active).map(c=><option key={c.slug} value={c.name}>{c.name}</option>)}</select></label>}
+         {draft.categoryMode === "auto" && <p className="admin-muted admin-wide">The matching enabled category will be selected automatically. You can change it to Manual at any time.</p>}
         <label>Size type<select value={draft.unit} onChange={e=>change("unit",e.target.value)}><option value="kg">Kilograms</option><option value="pieces">Pieces</option><option value="menu">Printed menu portions</option></select></label>
         <label>{draft.unit==="menu"?"Option codes (e.g. 1,2,3)":"Available sizes (comma separated)"}<input required value={draft.weights} onChange={e=>change("weights",e.target.value)}/></label>
         <label>Base price (₹)<input required type="number" min="0.01" step="0.01" value={draft.price} onChange={e=>change("price",e.target.value)}/></label>
