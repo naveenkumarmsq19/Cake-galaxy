@@ -12,7 +12,7 @@ import { addons } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
 import { createProductGalleryRouter } from "./gallery.js";
-import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot } from "./validation.js";
+import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot, deliveryLocation } from "./validation.js";
 import { razorpay, razorpayConfigured, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { invoiceConfigured, issueInvoice } from "./invoice.js";
 
@@ -292,7 +292,7 @@ export function createApp() {
     const reference = (testCod ? "CGT" : "CG") + randomBytes(8).toString("hex").toUpperCase();
     const order = await Order.create({ reference, customerPhone: req.customer, sender: { name: senderName, phone: req.customer }, idempotencyKey, items, branchId: branch._id,
       assignmentHistory: [{ from: null, to: branch._id, reason: "pincode", at: new Date() }],
-      address: { name: text(address.name, 80), phone: recipientPhone, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60) },
+      address: { name: text(address.name, 80), phone: recipientPhone, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60), ...(address.location ? { location: deliveryLocation(address.location) } : {}) },
       delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: !testCod && address.whatsapp === true,
       ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : {}) });
     if (testCod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });

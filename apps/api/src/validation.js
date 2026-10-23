@@ -34,6 +34,19 @@ export function validateDeliverySlot(date, slot, now = new Date(), minimumPrepar
   return slot;
 }
 
+// An optional location pin accompanies the human-entered delivery address.
+// It cannot replace service-area checking by pincode.
+export function deliveryLocation(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.lat !== "number" || typeof value.lng !== "number" ||
+      !Number.isFinite(value.lat) || !Number.isFinite(value.lng) ||
+      value.lat < 6 || value.lat > 38 || value.lng < 68 || value.lng > 98) {
+    throw new HttpError(400, "Choose a valid delivery map pin in India.");
+  }
+  return { lat:Number(value.lat.toFixed(6)), lng:Number(value.lng.toFixed(6)) };
+}
+
 export function priceItem(item, product) {
   if (!product?.active || !product.weights.includes(Number(item.size)) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) throw new HttpError(400, "A cake in your bag is unavailable. Please review your bag.");
   if (item.eggless && !product.eggless) throw new HttpError(400, "Eggless is unavailable for this cake.");

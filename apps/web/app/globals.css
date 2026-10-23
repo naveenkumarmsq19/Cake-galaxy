@@ -536,3 +536,22 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .admin-siren-volume input[type="range"] { width:clamp(130px,30vw,260px); accent-color:#c14322; cursor:pointer; min-height:32px; }
 .admin-siren-volume span { color:#6d594e; font-size:12px; }
 @media(max-width:600px) { .admin-siren-volume { align-items:flex-start; } .admin-siren-volume input[type="range"] { flex:1 1 100%; width:100%; } .admin-siren-volume span { flex-basis:100%; } }
+
+
+/* Cake Galaxy: mobile responsive pinpoint delivery map */
+.cake-map-picker { border:1px solid var(--line); padding:16px; margin-top:19px; border-radius:13px; background:#fbfbf8; min-width:0; }
+.cake-map-title { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:13px; }
+.cake-map-title h3 { margin:0 0 5px; font-size:18px; }
+.cake-map-title p { max-width:550px; margin:0; color:var(--muted); font-size:13px; }
+.cake-map-title .button { font-size:13px; min-height:42px; white-space:nowrap; }
+.cake-map-surface { height:340px; min-width:0; width:100%; border-radius:10px; overflow:hidden; background:#d8e4da; z-index:0; }
+.cake-map-icon { font-size:30px; filter: drop-shadow(0 2px 2px #0004); text-align:center; line-height:34px; }
+.cake-map-picked { color:#245236; background:#eaf7ec; padding:10px 12px; border-radius:7px; font-size:13px; overflow-wrap:anywhere; }
+.cake-map-error { font-size:13px; color:#8a3e24; padding:9px 12px; background:#fdf0e8; border-radius:7px; }
+.cake-map-credit { color:var(--muted); font-size:11px; }
+@media(max-width:620px) {
+  .cake-map-picker { padding:10px; margin-top:15px; }
+  .cake-map-title { align-items:stretch; }
+  .cake-map-title .button { width:100%; }
+  .cake-map-surface { height:290px; }
+}
