@@ -16,6 +16,7 @@ import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, val
 import { razorpay, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { issueInvoice, merchantGstRegistered } from "./invoice.js";
 import { paymentReadiness } from "./paymentReadiness.js";
+import { imageKitProduct } from "./imageKitProduct.js";
 import { parseCancellation, visibleCancellation, applyRefundWebhook } from "./cancellations.js";
 
 const cookieName = "cg_session";
@@ -140,7 +141,9 @@ export function createApp() {
   });
   app.get("/api/catalog", async (_req, res) => {
     const catalog = await Product.find({ active: true, deletedAt: null }, { _id: 0, __v: 0, active: 0 }).lean();
-    res.json({ products: catalog, addons });
+    // ImageKit can be enabled only after every matching photo is confirmed uploaded.
+    // Until then existing, already stored product galleries remain unchanged.
+    res.json({ products: catalog.map(imageKitProduct), addons });
   });
   app.get("/api/delivery", async (req, res) => {
     const pincode = String(req.query.pincode || "");
