@@ -64,6 +64,36 @@ test("approved Pages and custom domains both receive credentialed CORS headers",
   }
 });
 
+test("Cake Galaxy custom domains are accepted for admin sign-in while unknown origins remain blocked", async () => {
+  const previous = process.env.WEB_ORIGINS;
+  process.env.WEB_ORIGINS = "https://cake-galaxy-web.pages.dev";
+  try {
+    await withServer(async (base) => {
+      const payload = JSON.stringify({ email: "invalid", password: "invalid" });
+      for (const origin of [
+        "https://cakegalaxy.in", "https://www.cakegalaxy.in",
+        "https://cake-galaxy-web.pages.dev"
+      ]) {
+        const response = await fetch(base + "/api/admin/login", {
+          method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: payload
+        });
+        assert.equal(response.status, 400, origin + " should reach login validation rather than origin rejection");
+        assert.equal(response.headers.get("access-control-allow-origin"), origin);
+        assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+      }
+      const blocked = await fetch(base + "/api/admin/login", {
+        method: "POST", headers: { Origin: "https://fake-cakegalaxy.in", "Content-Type": "application/json" }, body: payload
+      });
+      assert.equal(blocked.status, 403);
+      assert.match((await blocked.json()).error, /origin isn't allowed/i);
+      assert.equal(blocked.headers.get("access-control-allow-origin"), null);
+    });
+  } finally {
+    if (previous === undefined) delete process.env.WEB_ORIGINS;
+    else process.env.WEB_ORIGINS = previous;
+  }
+});
+
 async function withServer(run) {
   const server = createApp().listen(0);
   await new Promise((resolve) => server.once("listening", resolve));

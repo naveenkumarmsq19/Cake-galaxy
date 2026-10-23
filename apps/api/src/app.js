@@ -92,8 +92,13 @@ async function prepareProviderOrder(order) {
 
 export function createApp() {
   const app = express();
-  const origins = (process.env.WEB_ORIGINS || process.env.WEB_ORIGIN || "http://localhost:3000")
-    .split(",").map((value) => value.trim().replace(/\/$/, "")).filter(Boolean);
+  // Preserve existing configured storefronts while also trusting our verified custom domains.
+  // The Cloudflare Pages proxy forwards the browser's original Origin to this API.
+  const origins = [...new Set([
+    ...(process.env.WEB_ORIGINS || process.env.WEB_ORIGIN || "http://localhost:3000").split(","),
+    "https://cakegalaxy.in",
+    "https://www.cakegalaxy.in"
+  ].map((value) => value.trim().replace(/\/$/, "")).filter(Boolean))];
   app.disable("x-powered-by");
   if (process.env.NODE_ENV === "production" || process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
   app.use((req, res, next) => { res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); next(); });
