@@ -5,6 +5,7 @@ import { products, menuProducts } from "@cake-galaxy/catalog";
 import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
 import { bootstrapSuperAdmin, ensureBaseServiceAreas } from "./bootstrap.js";
+import { applyApprovedLaunchCatalogue } from "./approvedCatalogue.js";
 
 config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -27,8 +28,9 @@ async function start() {
   await Product.bulkWrite(menuProducts.map(({ id, menuCategory }) => ({
     updateOne: { filter: { id, menuCategory: { $exists: false } }, update: { $set: { menuCategory } } }
   })));
-  // Existing active products remain unchanged until the merchant imports and publishes the gallery bundle.
-  // Publication then disables the old placeholders and enables only selected photo-backed cakes.
+  // User's explicitly approved 32 products are enabled once; all others remain in DB inactive.
+  const launch = await applyApprovedLaunchCatalogue();
+  if (!launch.alreadyApplied) process.stdout.write("Approved catalogue release: 32 half-kg-priced cakes enabled, all other catalogue entries disabled.\n");
 
   const initialBranches = [
     { code: "BR01", name: "Peenya", address: "Laggere Main Rd, Preethi Nagar, MEI Colony, Phase 3, Peenya, Bengaluru, Karnataka 560058", basePincode: "560058" },

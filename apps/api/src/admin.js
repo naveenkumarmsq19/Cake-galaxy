@@ -191,6 +191,15 @@ export function createAdminRouter() {
     const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(200).lean();
     res.json({ orders: orders.map(visibleOrder) });
   });
+  router.get("/orders/attention", async (req, res) => {
+    // Query only paid orders still waiting for the first staff acceptance.
+    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $ne: "requested" } };
+    const [count, orders] = await Promise.all([
+      Order.countDocuments(filter),
+      Order.find(filter).sort({ createdAt: -1 }).limit(20).lean()
+    ]);
+    res.json({ count, orders: orders.map(order => ({ reference: order.reference, branchId: String(order.branchId || ""), createdAt: order.createdAt, testOrder: order.testOrder === true })) });
+  });
   router.patch("/orders/:reference/status", async (req, res) => {
     const next = text(req.body?.status, 32);
     const allowed = { confirmed: "preparing", preparing: "out_for_delivery", out_for_delivery: "delivered" };
@@ -270,7 +279,7 @@ export function createAdminRouter() {
     if (req.body?.active === true) {
       const target = await Product.findOne({ id: text(req.params.id, 80), deletedAt: null }).lean();
       if (!target) throw new HttpError(404, "Product not found.");
-      if (!(target.images || []).length) throw new HttpError(400, "Upload at least one approved cake photo before enabling this product.");
+      if (!target.active && !(target.images || []).length) throw new HttpError(400, "Upload at least one approved cake photo before enabling this product.");
     }
     const product = await Product.findOneAndUpdate({ id: text(req.params.id, 80), deletedAt: null }, { $set: productChanges(req.body) }, { new: true, runValidators: true });
     if (!product) throw new HttpError(404, "Product not found.");
@@ -306,7 +315,7 @@ function productChanges(body) {
     changes.category = body.category.map((value) => text(value, 60));
   }
   if (body?.weights !== undefined) {
-    if (!Array.isArray(body.weights) || !body.weights.length || body.weights.length > 12 || body.weights.some((v) => typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 20)) throw new HttpError(400, "Enter valid cake sizes.");
+    if (!Array.isArray(body.weights) || !body.weights.length || body.weights.length > 40 || body.weights.some((v) => typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > 20)) throw new HttpError(400, "Enter valid cake sizes.");
     changes.weights = body.weights;
   }
   if (body?.price !== undefined) changes.price = money(body.price);

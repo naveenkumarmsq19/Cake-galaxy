@@ -103,6 +103,8 @@ const productImageSchema = new mongoose.Schema({
   fileId: { type: mongoose.Schema.Types.ObjectId, required: true }, hash: String, length: Number
 }, options);
 productImageSchema.index({ productId: 1, hash: 1 });
+const catalogueReleaseSchema = new mongoose.Schema({ key: { type: String, unique: true, required: true }, appliedAt: Date }, options);
+export const CatalogueRelease = mongoose.model("CatalogueRelease", catalogueReleaseSchema);
 export const Product = mongoose.model("Product", productSchema);
 export const ProductImage = mongoose.model("ProductImage", productImageSchema);
 export const ServiceArea = mongoose.model("ServiceArea", areaSchema);

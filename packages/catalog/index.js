@@ -1,4 +1,5 @@
 export { menuSections, menuProducts, menuExtras } from "./menu.js";
+export { approvedCakePrices, approvedCakeIds, approvedWeightsKg } from "./approvedCakes.js";
 
 export const images = {
   banner: "/images/celebration-banner.webp",
@@ -37,7 +38,7 @@ export const addons = [
 ];
 
 export const getProduct = (id, list = products) => list.find((product) => product.id === id);
-export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
+export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(paise / 100);
 export const sizeLabel = (product, size = product.weights[0]) => product.unit === "menu"
   ? (product.variantLabels?.get?.(weightKey(size)) ?? product.variantLabels?.[weightKey(size)] ?? "Option " + size)
   : size + (product.unit === "pieces" ? " pieces" : " kg");
@@ -69,8 +70,8 @@ export function discountAmount(item, product = getProduct(item.productId)) {
   const size = Number(item?.size);
   if (!product || product.unit !== "kg" || size <= 1 || !product.weights.includes(size)) return 0;
   const base = catalogueBasePrice(item, product);
-  const eligiblePrice = base + egglessSurcharge(item, product);
-  return Math.round((eligiblePrice / 100) * 0.1) * 100;
+  // Promotion applies to the cake itself, not optional toppings or eggless surcharge.
+  return Math.round(base * 0.10);
 }
 
 export function unitPrice(item, product = getProduct(item.productId)) {
