@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Product, ProductImage } from "./models.js";
 import { HttpError, text } from "./validation.js";
 import { extractGalleryZip } from "./galleryZip.js";
+import { approvedCakeIds } from "@cake-galaxy/catalog";
 
 const maxUploadBytes = 2_000_000;
 export const uploadableProductIds = new Set([
@@ -141,22 +142,14 @@ export function registerAdminGalleryRoutes(router, requireSuper) {
       const result = await storeProductPhotos(id, files);
       imported.push({ id, images: result.images.length });
     }
-    // Only switch public visibility AFTER validated photos have been saved.
-    const disabled = await Product.updateMany({ active: true }, { $set: { active: false } });
-    const enabled = await Product.updateMany({ id: { $in: [...groups.keys()] }, menuImported: true,
-      deletedAt: null, "images.0": { $exists: true } }, { $set: { active: true } });
-    res.json({ imported, enabled: enabled.modifiedCount, disabled: disabled.modifiedCount, skippedUnmatched: true });
+    // Upload galleries only. The approved 32-product catalogue controls publication independently.
+    res.json({ imported, enabled: 0, disabled: 0, skippedUnmatched: true });
   });
 
   router.post("/catalogue/publish-uploaded-only", requireSuper, async (_req, res) => {
-    // Publication must never expose old seeded placeholders or unmatched menu entries.
-    const disabled = await Product.updateMany({ active: true }, { $set: { active: false } });
-    const enabled = await Product.updateMany({
-      id: { $in: [
-        ...uploadableProductIds
-      ] },
-      menuImported: true, deletedAt: null, "images.0": { $exists: true }
-    }, { $set: { active: true } });
+    // Keep the approved 32 items eligible; all others remain archived/inactive.
+    const disabled = await Product.updateMany({ id: { $nin: approvedCakeIds }, active: true }, { $set: { active: false } });
+    const enabled = await Product.updateMany({ id: { $in: approvedCakeIds }, deletedAt: null }, { $set: { active: true } });
     res.json({ disabled: disabled.modifiedCount, enabled: enabled.modifiedCount });
   });
 }

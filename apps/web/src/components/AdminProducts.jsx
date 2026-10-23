@@ -182,26 +182,26 @@ export default function AdminProducts({ products, isSuperAdmin, busy, request, u
       </>}
       <div className="admin-gallery-wrap">
         <h3>Import all 12 prepared cake galleries in one step</h3>
-        <p className="admin-photo-note">Upload the compressed Cake Galaxy ZIP bundle (with menu-ID folders). The server validates each image, stores up to 16 per product, and publishes only the 10 matching cakes. Choco Pista and Choco Dates stay excluded until their menu names and prices are confirmed. All other products become disabled after the ZIP import succeeds.</p>
+        <p className="admin-photo-note">Upload the compressed Cake Galaxy ZIP bundle (with menu-ID folders). The server validates images and stores each gallery without changing product visibility. The approved list now contains 32 cakes; the 10 matched photos will attach to those cakes and the remaining cakes stay enabled with their pending photos.</p>
         <label className="admin-gallery-picker">Choose prepared ZIP bundle (up to 32 MB)
           <input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>{
             const file=e.target.files?.[0];e.target.value="";
-            if(file && window.confirm("Import all recognized galleries and publish ONLY those products? Existing non-matching products will be disabled.")) execute(async()=>{
+            if(file && window.confirm("Import all recognized cake galleries? Product enabled/disabled status will stay unchanged.")) execute(async()=>{
               const result=await importGalleryBundle(file);
               if(!result.imported?.length) throw new Error("No known cake images were imported.");
-            },"Gallery ZIP imported; matching cakes enabled and others disabled");
+            },"Gallery ZIP imported; product statuses unchanged");
           }}/>
         </label>
       </div>
       <div className="admin-gallery-wrap">
-        <h3>Publish only the supplied product photos</h3>
-        <p className="admin-photo-note">This disables every other product and enables only the 10 PDF-matched cakes from the current ZIP batch that already have uploaded galleries. Choco Pista and Choco Dates remain on hold until their product identities/prices are confirmed.</p>
+        <h3>Publish the approved 32-cake list</h3>
+        <p className="admin-photo-note">This disables non-approved products and enables only the 32 cakes from the owner's latest price list. Images and historical orders remain unchanged.</p>
         <button type="button" className="admin-primary" disabled={busy} onClick={()=>{
-          if(window.confirm("Publish only the matched, photo-uploaded cakes? This will hide ALL other products from the customer shop.")) execute(async ()=>{
+          if(window.confirm("Show only the approved 32 cakes? This will hide other products without deleting them.")) execute(async ()=>{
             const result=await request("catalogue/publish-uploaded-only","POST");
-            if(!result.enabled) throw new Error("No matching products have uploaded photos yet. Other products were disabled for safety.");
-          },"Only photo-uploaded matching cakes published");
-        }}>Publish uploaded-only products</button>
+            if(!result.enabled && !result.disabled) throw new Error("No catalogue statuses were changed.");
+          },"Approved 32-cake list published");
+        }}>Publish approved 32 cakes</button>
       </div>
     </div>}
 

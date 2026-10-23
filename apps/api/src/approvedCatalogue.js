@@ -21,6 +21,7 @@ export async function applyApprovedLaunchCatalogue() {
           active: true, deletedAt: null, eggless: false,
           menuCategory: cake.category, category: [cake.category, "Birthday"],
           flavour: cake.name.replace(/ Cake$| Cheesecake$/i, ""),
+          description: "Cake Galaxy " + cake.name + ". Half kilogram price: ₹" + cake.halfKg + ". Larger cakes are priced by weight, with 10% off cake prices above 1 kg. Images may be illustrative until product-specific photos are uploaded.",
           menuImported: true
         },
         $setOnInsert: {

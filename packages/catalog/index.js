@@ -38,7 +38,7 @@ export const addons = [
 ];
 
 export const getProduct = (id, list = products) => list.find((product) => product.id === id);
-export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
+export const money = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(paise / 100);
 export const sizeLabel = (product, size = product.weights[0]) => product.unit === "menu"
   ? (product.variantLabels?.get?.(weightKey(size)) ?? product.variantLabels?.[weightKey(size)] ?? "Option " + size)
   : size + (product.unit === "pieces" ? " pieces" : " kg");
