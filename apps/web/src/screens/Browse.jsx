@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { addons, categories, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
+import { addons, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
 import ProductGallery from "../components/ProductGallery";
 
 export function Home() {
-  const { catalog } = useStore();
+  const { catalog, categories } = useStore();
   return <div className="wrap page home-page">
     <section className="hero" aria-labelledby="hero-title"><img className="hero-art" src={images.banner} alt="Ivory celebration cake with delicate sage details" fetchPriority="high"/><div className="hero-copy"><span className="overline">THE CELEBRATION EDIT</span><h1 id="hero-title">Made for<br/><em>your moments.</em></h1><p>A beautiful cake. A memory to keep.</p><Link className="button" href="/shop">Shop cakes <Icon name="arrow"/></Link> <Link className="button outline" href="/menu">View full menu</Link></div></section>
-    <section className="section occasions"><SectionHeading title="Every occasion, a cake."/><div className="category-grid">{categories.map((category) => <Link className="category-tile" href={"/shop?category=" + category.query} key={category.query}><span className="category-image"><img src={category.image} alt="" loading="lazy"/></span>{category.name}</Link>)}</div></section>
+    <section className="section occasions"><SectionHeading title="Every occasion, a cake."/><div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={"/shop?category=" + encodeURIComponent(category.name)} key={category.slug}><span className="category-image"><img src={cover?.images?.[0] || cover?.image || category.image || images.celebration} alt="" loading="lazy"/></span>{category.name}</Link>; })}</div></section>
     <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more."/><div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     <section className="section custom-banner"><div className="custom-banner-copy"><span className="overline">MADE JUST FOR YOU</span><h2>Your idea.<br/><em>Our finishing touch.</em></h2><p>Share a design you love. We’ll make it your own.</p><Link href="/custom" className="button outline">Create your cake <Icon name="arrow"/></Link></div><img src={images.custom} alt="Two-tier celebration cake with seasonal berries" loading="lazy"/></section>
     <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day."/><div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
@@ -23,12 +23,12 @@ export function Home() {
 export function Shop() {
   const router = useRouter();
   const params = useSearchParams();
-  const { catalog } = useStore();
+  const { catalog, categories } = useStore();
   const category = params.get("category") || "All";
   const query = (params.get("q") || "").trim();
   const sort = params.get("sort") || "recommended";
-  const options = ["All", "Birthday", "Anniversary", "Chocolate", "Kids", "Photo", "Designer", "Cupcakes", ...new Set(catalog.map(p=>p.menuCategory).filter(Boolean))];
-  const matches = catalog.filter((product) => (category === "All" || product.category.includes(category) || product.flavour === category || product.menuCategory === category) && (product.name + " " + product.flavour + " " + product.category.join(" ")).toLowerCase().includes(query.toLowerCase()));
+  const options = ["All", ...categories.map(item => item.name)];
+  const matches = catalog.filter((product) => (category === "All" || (product.category || []).includes(category) || product.flavour === category || product.menuCategory === category) && (product.name + " " + product.flavour + " " + (product.category || []).join(" ")).toLowerCase().includes(query.toLowerCase()));
   const startingPrice = (p) => unitPrice({ productId: p.id, size: p.weights[0], eggless: false, addons: [] }, p);
   if (sort === "low") matches.sort((a, b) => startingPrice(a) - startingPrice(b));
   if (sort === "high") matches.sort((a, b) => startingPrice(b) - startingPrice(a));
@@ -62,6 +62,10 @@ export function Product() {
     setEggless(false); setExtras([]); setMessage(""); setFile(null);
   }, [key]);
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
+  const related = catalog.filter(item => item.id !== product.id).map(item => ({
+    item, score: (item.category || []).filter(value => (product.category || []).includes(value)).length * 10 +
+      (item.flavour && item.flavour === product.flavour ? 2 : 0)
+  })).sort((a,b) => b.score - a.score || a.item.name.localeCompare(b.item.name)).slice(0, 4).map(entry => entry.item);
   const selectedItem = { productId: product.id, size: Number(size), eggless, addons: extras };
   const selectedPrice = unitPrice(selectedItem, product);
   const originalPrice = regularUnitPrice(selectedItem, product);
@@ -96,7 +100,12 @@ export function Product() {
       <div className="field-group"><span className="field-label">Make it a little more special</span>{addons.map((addon) => <label key={addon.id} className="check-label"><input type="checkbox" checked={extras.includes(addon.id)} onChange={(event) => setExtras((items) => event.target.checked ? [...items, addon.id] : items.filter((id) => id !== addon.id))}/>{addon.name} <span className="subtle">+{money(addon.price)}</span></label>)}</div>
       <div className="field-group"><label htmlFor="product-pincode">Delivery pincode</label><input id="product-pincode" name="productPincode" inputMode="numeric" autoComplete="postal-code" pattern="[1-9][0-9]{5}" maxLength={6} value={deliveryPin} onChange={(event) => { setDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6)); setFeedback(""); }} placeholder="Enter 6-digit pincode" required/><p className="subtle">{/^[1-9][0-9]{5}$/.test(deliveryPin) ? "Delivery availability and charges are confirmed before payment." : "Enter a 6-digit pincode to continue."}</p></div>
       <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div><p className="form-message" role="status">{feedback}</p>
-    </form></div></div></div>;
+    </form></div></div>
+    {related.length > 0 && <section className="section related-section" aria-labelledby="related-title">
+      <div className="section-heading"><div><h2 id="related-title">You may also like</h2><p>More cakes to make your celebration special.</p></div></div>
+      <div className="products related-products">{related.map(item => <ProductCard key={item.id} product={item}/>)}</div>
+    </section>}
+  </div>;
 }
 
 export function Custom() {
