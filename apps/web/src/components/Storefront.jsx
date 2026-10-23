@@ -108,7 +108,7 @@ export function StoreProvider({ children }) {
     api("/catalog", { skipCsrf: true }).then((data) => {
       if (Array.isArray(data.products)) {
         setCatalog(data.products);
-        setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active) : []);
+        setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active && data.products.some(product => product.category?.includes(item.name))) : []);
         setCatalogLoaded(true);
         const available = new Map(data.products.map((product) => [product.id, product]));
         const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)));
