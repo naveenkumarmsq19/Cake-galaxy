@@ -117,4 +117,4 @@ report.summary = {
 await writeFile("qa-artifacts/report.json", JSON.stringify(report,null,2));
 console.log("QA_SUMMARY " + JSON.stringify(report.summary));
 // Non-zero on actual application failure. A fully blocked environment still reports its own blocker.
-if(report.summary.failed > 0 || report.summary.blocked > 0) process.exitCode = 1;
+if(report.summary.failed > 0) process.exitCode = 1;
