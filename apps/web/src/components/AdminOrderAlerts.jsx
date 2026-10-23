@@ -49,16 +49,6 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
     }
   }
 
-  async function previewSiren() {
-    try {
-      const audio = await prepareAudio();
-      stopSiren();
-      stopCurrent.current = playEmergencySiren(audio, volume / 100);
-      setWarning("");
-    } catch (e) {
-      setWarning(e.message || "Could not play the emergency siren.");
-    }
-  }
 
   function mute() {
     setEnabled(false);
@@ -133,7 +123,6 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
       <div className="admin-order-alert-actions">
         {!enabled ? <button type="button" className="admin-primary" onClick={enableAudio}>Enable siren alerts</button>
           : <button type="button" className="admin-ghost" onClick={mute}>Mute siren</button>}
-        <button type="button" className="admin-ghost" onClick={previewSiren}>▶ Test siren</button>
         {count > 0 && <button type="button" className="admin-primary" onClick={()=>setTab("Orders")}>Review &amp; accept</button>}
       </div>
     </div>
@@ -141,7 +130,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
       <label htmlFor="cake-siren-volume">Siren volume <strong>{volume}%</strong></label>
       <input id="cake-siren-volume" type="range" min="25" max="100" step="5" value={volume}
         onChange={e=>adjustVolume(e.target.value)} aria-label="Emergency siren volume"/>
-      <span>Test at a comfortable volume before using 100%.</span>
+      <span>Adjust to a comfortable volume. The siren plays only for unaccepted orders.</span>
     </div>
     <small>Keep Admin open for audible alerts. Your device/browser volume also affects loudness; background tabs may be throttled, and closing the page stops sound.</small>
   </div>;
