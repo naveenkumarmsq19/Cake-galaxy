@@ -4,7 +4,8 @@ import SiteShell from "../src/components/SiteShell";
 
 export const metadata = {
   title: "Cake Galaxy | Made for your moments",
-  description: "Shop celebration cakes, photo cakes and custom designs at Cake Galaxy. Personalise your cake and select a delivery date."
+  description: "Shop celebration cakes, photo cakes and custom designs at Cake Galaxy. Personalise your cake and select a delivery date.",
+  icons: { icon: [{ url: "/images/cake-galaxy-sage-logo.webp", type: "image/webp" }] }
 };
 
 export default function RootLayout({ children }) {
