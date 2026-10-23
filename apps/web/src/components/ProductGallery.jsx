@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const galleryPhotos = product => product?.images?.length ? product.images : (product?.image ? [product.image] : []);
 
@@ -8,6 +8,10 @@ export default function ProductGallery({ product }) {
   const images = galleryPhotos(product);
   const [active,setActive] = useState(0);
   const list = useRef(null);
+  useEffect(() => {
+    setActive(0);
+    list.current?.scrollTo?.({ left: 0, behavior: "instant" });
+  }, [product.id]);
   const go = n => {
     const next = Math.min(images.length-1,Math.max(0,n));
     if (list.current) list.current.scrollTo({left:next*list.current.clientWidth,behavior:"smooth"});
@@ -15,12 +19,12 @@ export default function ProductGallery({ product }) {
   };
   return <div className="product-gallery" aria-label={product.name+" photos"} key={product.id}>
     <div className="product-gallery-stage">
-      <div className="product-gallery-track" ref={list} onScroll={e=>{
+      <div className="product-gallery-track" ref={list} role="region" aria-roledescription="carousel" aria-label="Cake photos" onScroll={e=>{
         const el=e.currentTarget;
         setActive(Math.max(0,Math.min(images.length-1,Math.round(el.scrollLeft/Math.max(1,el.clientWidth)))));
       }}>
         {images.map((src,i)=><div className="product-gallery-slide" key={src}>
-          <img src={src} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"}/>
+          <img src={src} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"} draggable="false"/>
         </div>)}
       </div>
       {images.length>1 && <>
