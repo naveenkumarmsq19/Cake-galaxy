@@ -191,6 +191,15 @@ export function createAdminRouter() {
     const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(200).lean();
     res.json({ orders: orders.map(visibleOrder) });
   });
+  router.get("/orders/attention", async (req, res) => {
+    // Query only paid orders still waiting for the first staff acceptance.
+    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $ne: "requested" } };
+    const [count, orders] = await Promise.all([
+      Order.countDocuments(filter),
+      Order.find(filter).sort({ createdAt: -1 }).limit(20).lean()
+    ]);
+    res.json({ count, orders: orders.map(order => ({ reference: order.reference, branchId: String(order.branchId || ""), createdAt: order.createdAt, testOrder: order.testOrder === true })) });
+  });
   router.patch("/orders/:reference/status", async (req, res) => {
     const next = text(req.body?.status, 32);
     const allowed = { confirmed: "preparing", preparing: "out_for_delivery", out_for_delivery: "delivered" };

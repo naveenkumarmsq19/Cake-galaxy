@@ -509,3 +509,23 @@ input::placeholder,textarea::placeholder { color: #90968e; }
   .admin-gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-gallery-picker { padding:10px; }
 }
+
+
+/* Admin new-order alarm and responsive weight-picker */
+.admin-order-alerts { border:1px solid #c9d8ca; border-radius:12px; background:#f2f7f2; margin:14px 0 21px; padding:17px 20px; }
+.admin-order-alerts.has-pending { background:#fff4e2; border-color:#eb9d3b; box-shadow:0 0 0 2px #edbd7060; }
+.admin-order-alert-main { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; }
+.admin-order-alert-main strong { font-size:17px; display:block; }
+.admin-order-alert-main p { margin:6px 0; font-size:13px; }
+.admin-order-alerts small { display:block; margin-top:10px; color:#62665c; }
+.admin-order-alert-refs { font-weight:600; }
+.admin-order-alert-warning { color:#8d370b; }
+.admin-order-alert-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.admin-order-alert-actions button { min-height:42px; }
+.detail-panel .option-row select { width:100%; max-width:420px; min-height:48px; border:1px solid var(--line); background:#fff; border-radius:9px; padding:11px 13px; font-size:15px; }
+@media(max-width:600px) {
+ .admin-order-alerts { padding:13px; }
+ .admin-order-alert-main { display:block; }
+ .admin-order-alert-actions { margin-top:12px; }
+ .admin-order-alert-actions button { flex:1 1 150px; }
+}
