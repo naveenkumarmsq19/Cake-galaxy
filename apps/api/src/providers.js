@@ -27,6 +27,35 @@ export function validWebhookSignature(body, signature) {
   return safeCompare(expected, signature);
 }
 
+// MSG91's SMS OTP service generates the code, sends it using an approved SMS/OTP
+// template and verifies it later. Never generate or log production OTPs locally.
+export async function sendSmsOtp(phone) {
+  const key = process.env.MSG91_AUTH_KEY;
+  const template = process.env.MSG91_SMS_OTP_TEMPLATE_ID;
+  if (!key || !template) throw new HttpError(503, "SMS OTP is not configured. Add your approved MSG91 SMS OTP template in the server settings.");
+  const url = new URL("https://control.msg91.com/api/v5/otp");
+  url.searchParams.set("template_id", template);
+  url.searchParams.set("mobile", "91" + phone);
+  url.searchParams.set("otp_length", "6");
+  url.searchParams.set("otp_expiry", "5");
+  let response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "POST", signal: AbortSignal.timeout(15000),
+      headers: { authkey: key, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+  } catch {
+    throw new HttpError(502, "SMS OTP provider is unreachable. Please try again.");
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.type !== "success") {
+    throw new HttpError(502, "SMS OTP could not be sent. Check your approved DLT/MSG91 SMS template and try again.");
+  }
+  // No codeHash is stored for SMS. The verify endpoint asks MSG91 to validate the OTP.
+  return { code: null, channel: "sms" };
+}
+
 export async function sendOtp(phone) {
   if (process.env.DEV_OTP_ENABLED === "true" && process.env.NODE_ENV !== "production") {
     const code = String(randomInt(100000, 1000000));
@@ -34,12 +63,17 @@ export async function sendOtp(phone) {
     return { code, channel: "development" };
   }
 
+  // SMS is the primary real-customer delivery route when a DLT-approved
+  // MSG91 SMS OTP template has been configured. WhatsApp remains supported
+  // separately after Meta approves the required template.
+  if (process.env.MSG91_SMS_OTP_TEMPLATE_ID) return sendSmsOtp(phone);
+
   const {
     MSG91_AUTH_KEY: key,
     MSG91_WHATSAPP_NUMBER: number,
     MSG91_WHATSAPP_OTP_TEMPLATE_NAME: template
   } = process.env;
-  if (!key || !number || !template) throw new HttpError(503, "WhatsApp OTP is not configured yet.");
+  if (!key || !number || !template) throw new HttpError(503, "Customer OTP is not configured. Configure an approved MSG91 SMS OTP template or an approved WhatsApp OTP template.");
 
   const code = String(randomInt(100000, 1000000));
   let response;
@@ -79,6 +113,10 @@ export async function verifyOtp(phone, otp) {
   try { response = await fetch("https://control.msg91.com/api/v5/otp/verify?" + query, { headers: { authkey: process.env.MSG91_AUTH_KEY }, signal: AbortSignal.timeout(15000) }); }
   catch { throw new HttpError(502, "The code couldn't be checked. Please try again."); }
   const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status >= 500) throw new HttpError(502, "SMS verification service is unavailable. Please try again.");
+    throw new HttpError(400, "That verification code is invalid or expired.");
+  }
   if (data.type !== "success") throw new HttpError(400, "That verification code is invalid or expired.");
   return true;
 }

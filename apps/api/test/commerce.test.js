@@ -47,7 +47,7 @@ test("phone and delivery validators reject malformed inputs", () => {
 });
 
 test("OTP uses the configured MSG91 WhatsApp template rather than the SMS send endpoint", async () => {
-  const keys = ["NODE_ENV", "DEV_OTP_ENABLED", "MSG91_AUTH_KEY", "MSG91_WHATSAPP_NUMBER", "MSG91_WHATSAPP_OTP_TEMPLATE_NAME", "MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE"];
+  const keys = ["NODE_ENV", "DEV_OTP_ENABLED", "MSG91_AUTH_KEY", "MSG91_WHATSAPP_NUMBER", "MSG91_WHATSAPP_OTP_TEMPLATE_NAME", "MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE", "MSG91_SMS_OTP_TEMPLATE_ID"];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const originalFetch = globalThis.fetch;
   let request;
@@ -57,7 +57,8 @@ test("OTP uses the configured MSG91 WhatsApp template rather than the SMS send e
     MSG91_AUTH_KEY: "test-auth-key",
     MSG91_WHATSAPP_NUMBER: "919999999999",
     MSG91_WHATSAPP_OTP_TEMPLATE_NAME: "cake_galaxy_login_otp",
-    MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE: "en"
+    MSG91_WHATSAPP_OTP_TEMPLATE_LANGUAGE: "en",
+    MSG91_SMS_OTP_TEMPLATE_ID: ""
   });
   globalThis.fetch = async (url, options) => {
     request = { url: String(url), options };
