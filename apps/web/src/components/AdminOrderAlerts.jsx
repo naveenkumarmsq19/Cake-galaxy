@@ -11,6 +11,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   const [count, setCount] = useState(0);
   const [enabled, setEnabled] = useState(false);
   const [volume, setVolume] = useState(85);
+  const volumeRef = useRef(85);
   const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const sound = useRef(null);
@@ -26,8 +27,8 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
     const audio = sound.current;
     if (!audio || audio.state !== "running") return;
     stopSiren();
-    stopCurrent.current = playEmergencySiren(audio, volume / 100);
-  }, [stopSiren, volume]);
+    stopCurrent.current = playEmergencySiren(audio, volumeRef.current / 100);
+  }, [stopSiren]);
 
   async function prepareAudio() {
     const Context = window.AudioContext || window.webkitAudioContext;
@@ -66,6 +67,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
 
   function adjustVolume(value) {
     const next = Math.min(100, Math.max(25, Number(value) || 85));
+    volumeRef.current = next;
     setVolume(next);
     try { localStorage.setItem(savedVolumeKey, String(next)); } catch { /* Private browsing. */ }
   }
@@ -73,7 +75,7 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(savedVolumeKey));
-      if (saved >= 25 && saved <= 100) setVolume(saved);
+      if (saved >= 25 && saved <= 100) { volumeRef.current = saved; setVolume(saved); }
     } catch { /* Storage is optional. */ }
   }, []);
 
@@ -103,15 +105,16 @@ export default function AdminOrderAlerts({ request, refresh, role, setTab }) {
     return () => { alive = false; clearInterval(interval); };
   }, [refreshAttention]);
 
+  const hasPendingOrders = count > 0;
   useEffect(() => {
-    if (!enabled || count <= 0) {
+    if (!enabled || !hasPendingOrders) {
       stopSiren();
       return;
     }
     siren();
     const interval = setInterval(siren, frequencySeconds * 1000);
     return () => { clearInterval(interval); stopSiren(); };
-  }, [enabled, count > 0, siren, stopSiren]);
+  }, [enabled, hasPendingOrders, siren, stopSiren]);
 
   useEffect(() => () => {
     stopSiren();
