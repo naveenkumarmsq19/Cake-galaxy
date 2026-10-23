@@ -17,7 +17,7 @@ export const imagekitPhotoCounts = Object.freeze({
   "menu-death-by-chocolate": 6,
   "menu-dry-fruit": 6,
   "menu-ferraro-cake": 8,
-  "menu-fruit-almond": 11,
+  "menu-fruit-almond": 8,
   "menu-german-black-forest": 6,
   "menu-hazelnut": 5,
   "menu-honey-almond-truffle": 7,
@@ -32,7 +32,7 @@ export const imagekitPhotoCounts = Object.freeze({
   "menu-regular-strawberry": 6,
   "menu-rocky-road": 6,
   "menu-triple-queen": 7,
-  "menu-white-forest-truffle": 7
+  "menu-white-forest-truffle": 6
 });
 
 export function imageKitProduct(product) {

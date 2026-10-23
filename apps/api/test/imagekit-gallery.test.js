@@ -14,8 +14,10 @@ test("ImageKit gallery integration only switches on after explicit upload-comple
     assert.equal(updated.image, imagekitEndpoint + "/cake-galaxy/products/menu-black-forest/image-01.webp");
     assert.equal(updated.images.at(-1), imagekitEndpoint + "/cake-galaxy/products/menu-black-forest/image-07.webp");
     assert.deepEqual(imageKitProduct({id:"menu-classic-chocolate-truffle",image:"legacy.png"}),{id:"menu-classic-chocolate-truffle",image:"legacy.png"});
+    assert.equal(imagekitPhotoCounts["menu-fruit-almond"],8);
+    assert.equal(imagekitPhotoCounts["menu-white-forest-truffle"],6);
     assert.equal(Object.keys(imagekitPhotoCounts).length,30);
-    assert.equal(Object.values(imagekitPhotoCounts).reduce((a,b)=>a+b,0),202);
+    assert.equal(Object.values(imagekitPhotoCounts).reduce((a,b)=>a+b,0),198);
   } finally {
     if (original===undefined)delete process.env.IMAGEKIT_GALLERIES_ENABLED;
     else process.env.IMAGEKIT_GALLERIES_ENABLED=original;
