@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { discountAmount, products as initialProducts, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
+import { discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -17,7 +17,7 @@ export function useStore() {
 }
 
 export function StoreProvider({ children }) {
-  const [catalog, setCatalog] = useState(initialProducts);
+  const [catalog, setCatalog] = useState([]); // Never expose unapproved sample products while catalogue API loads.
   const [cart, setCart] = useState([]);
   const cartRef = useRef([]);
   const [hydrated, setHydrated] = useState(false);

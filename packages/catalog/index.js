@@ -1,4 +1,5 @@
 export { menuSections, menuProducts, menuExtras } from "./menu.js";
+export { approvedCakePrices, approvedCakeIds, approvedWeightsKg } from "./approvedCakes.js";
 
 export const images = {
   banner: "/images/celebration-banner.webp",
@@ -69,8 +70,8 @@ export function discountAmount(item, product = getProduct(item.productId)) {
   const size = Number(item?.size);
   if (!product || product.unit !== "kg" || size <= 1 || !product.weights.includes(size)) return 0;
   const base = catalogueBasePrice(item, product);
-  const eligiblePrice = base + egglessSurcharge(item, product);
-  return Math.round((eligiblePrice / 100) * 0.1) * 100;
+  // Promotion applies to the cake itself, not optional toppings or eggless surcharge.
+  return Math.round(base * 0.10);
 }
 
 export function unitPrice(item, product = getProduct(item.productId)) {
