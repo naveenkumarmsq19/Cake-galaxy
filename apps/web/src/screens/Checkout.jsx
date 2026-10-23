@@ -176,23 +176,95 @@ export function Confirmation() {
   return <div className="wrap page empty-state"><h1>{order.testOrder ? "Your test order is confirmed" : "Your order is confirmed"}</h1><p>Order {order.reference} · {money(order.amount)}</p>{order.testOrder && <p>No payment was collected. This is a test order.</p>}<p>{order.deliveryLabel}</p><button className="button" type="button" onClick={() => router.push("/orders")}>View my orders</button></div>;
 }
 
+const cancellationOptions = [
+  ["changed_mind", "Changed my mind"],
+  ["ordered_by_mistake", "Ordered by mistake"],
+  ["wrong_order", "Wrong cake or details"],
+  ["delivery_issue", "Delivery timing or address issue"],
+  ["other", "Other reason"]
+];
+
 export function Orders() {
   const { api, session } = useStore();
   const [orders, setOrders] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [requesting, setRequesting] = useState("");
   const [phone, setPhone] = useState("");
+  const [cancelOpen, setCancelOpen] = useState("");
+  const [drafts, setDrafts] = useState({});
   useEffect(() => {
     if (session.authenticated) api("/orders").then((data) => setOrders(data.orders || [])).catch((error) => setFeedback(error.message));
-  }, [session.authenticated]);
-  async function cancel(order) {
-    const reason = window.prompt("Reason for cancellation request (optional):", "");
-    if (reason === null) return;
+  }, [session.authenticated, session.phone]);
+
+  async function cancel(event, order) {
+    event.preventDefault();
+    const draft = drafts[order.reference] || {};
+    if (!draft.category || (draft.reason || "").trim().length < 10) {
+      setFeedback("Select a cancellation category and explain the reason in at least 10 characters.");
+      return;
+    }
+    if (!window.confirm("Send this cancellation request to Cake Galaxy for review?")) return;
     setRequesting(order.reference);
-    try { await api("/orders/" + encodeURIComponent(order.reference) + "/cancellation", { method: "POST", body: { reason: reason.slice(0, 300) } }); setFeedback("Cancellation request received for " + order.reference + ". We'll review it."); }
-    catch (error) { setFeedback(error.message); }
+    setFeedback("");
+    try {
+      await api("/orders/" + encodeURIComponent(order.reference) + "/cancellation", {
+        method: "POST", body: { category: draft.category, reason: draft.reason.trim() }
+      });
+      const updated = await api("/orders");
+      setOrders(updated.orders || []);
+      setCancelOpen("");
+      setFeedback("Cancellation request sent. Cake Galaxy will review it; payment is not refunded automatically.");
+    } catch (error) { setFeedback(error.message); }
     finally { setRequesting(""); }
   }
+
   if (!session.authenticated) return <div className="wrap page"><div className="orders-verification panel"><h1>My orders</h1><p>Verify the number you used to place your order.</p><PhoneVerification phone={phone} onPhoneChange={setPhone}/></div></div>;
-  return <div className="wrap page"><div className="page-heading"><h1>My orders</h1></div><p className="form-message" role="status">{feedback}</p>{orders.length ? <div className="orders-grid">{orders.map((order) => <article className="panel" key={order.reference}><h2>Order {order.reference}</h2><p>{order.statusLabel || order.status} · {money(order.amount)}</p><p className="subtle">{order.deliveryLabel}</p>{order.testOrder && <p className="subtle">Test order · Cash on delivery · No payment collected</p>}{order.paymentStatus === "paid" && <a href={apiRoot + "/orders/" + encodeURIComponent(order.reference) + "/invoice"} target="_blank" rel="noopener noreferrer" className="text-link">Download invoice</a>}{["paid", "test_cod"].includes(order.paymentStatus) && order.status !== "delivered" && order.status !== "cancelled" && <button type="button" className="text-link" disabled={requesting === order.reference} onClick={() => cancel(order)}>Request cancellation</button>}</article>)}</div> : !feedback && <div className="empty-state"><h2>No orders yet</h2><p>Your confirmed orders will appear here.</p><Link href="/shop" className="button">Explore cakes</Link></div>}</div>;
+  return <div className="wrap page">
+    <div className="page-heading"><h1>My orders</h1></div>
+    {feedback && <p className="form-message" role="status">{feedback}</p>}
+    {orders.length ? <div className="orders-grid">{orders.map((order) => {
+      const cancellation = order.cancellation;
+      const refundable = ["paid", "test_cod"].includes(order.paymentStatus) &&
+        !["delivered", "cancelled"].includes(order.status) && !cancellation;
+      const draft = drafts[order.reference] || { category: "", reason: "" };
+      return <article className="panel" key={order.reference}>
+        <h2>Order {order.reference}</h2>
+        <p>{order.statusLabel || order.status} · {money(order.amount)}</p>
+        <p className="subtle">{order.deliveryLabel}</p>
+        {order.testOrder && <p className="subtle">Test order · Cash on delivery · No payment collected</p>}
+        {["paid", "refunded"].includes(order.paymentStatus) && <a href={apiRoot + "/orders/" + encodeURIComponent(order.reference) + "/invoice"} target="_blank" rel="noopener noreferrer" className="text-link">Download {order.paymentStatus === "refunded" ? "payment receipt" : "invoice or receipt"}</a>}
+        {cancellation && <div className="panel" role="status">
+          <strong>Cancellation: {cancellation.status === "requested" ? "Awaiting store review" : cancellation.status === "approved" ? "Approved" : "Declined"}</strong>
+          <p className="subtle">Reason: {cancellation.reason}</p>
+          {cancellation.status === "rejected" && <p>Store response: {cancellation.reviewReason || "Cancellation declined."}</p>}
+          {cancellation.status === "approved" && <>
+            {order.testOrder ? <p>Test order cancelled. No payment or refund was required.</p>
+              : cancellation.refund?.status === "processed" ? <p>Refund processed by Razorpay: {money(cancellation.refund.amount)}. Bank credit timing may vary.</p>
+              : cancellation.refund?.status === "failed" ? <p>Refund needs store attention. Please contact Cake Galaxy support.</p>
+              : cancellation.refund?.status === "ready" ? <p>Store approved. Refund has not been initiated yet.</p>
+              : <p>Refund is being processed. We'll update the status when Razorpay confirms.</p>}
+          </>}
+        </div>}
+        {refundable && <div>
+          {cancelOpen !== order.reference
+            ? <button type="button" className="text-link" onClick={() => setCancelOpen(order.reference)}>Request cancellation</button>
+            : <form onSubmit={(event) => cancel(event, order)} className="field-group">
+              <label>Cancellation reason
+                <select required value={draft.category} onChange={(e) => setDrafts((current) => ({ ...current, [order.reference]: { ...draft, category: e.target.value } }))}>
+                  <option value="">Select reason</option>
+                  {cancellationOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>Explain the reason (at least 10 characters)
+                <textarea required minLength={10} maxLength={300} rows={3} value={draft.reason}
+                  onChange={(e) => setDrafts((current) => ({ ...current, [order.reference]: { ...draft, reason: e.target.value } }))}
+                  placeholder="Tell us why you want to cancel this order"/>
+              </label>
+              <button type="submit" className="button" disabled={requesting === order.reference || !draft.category || (draft.reason || "").trim().length < 10}>Send cancellation request</button>
+              <button type="button" className="text-link" onClick={() => setCancelOpen("")}>Keep order</button>
+            </form>}
+        </div>}
+      </article>;
+    })}</div> : !feedback && <div className="empty-state"><h2>No orders yet</h2><p>Your confirmed orders will appear here.</p><Link href="/shop" className="button">Explore cakes</Link></div>}
+  </div>;
 }

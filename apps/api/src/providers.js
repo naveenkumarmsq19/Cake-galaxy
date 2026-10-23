@@ -3,12 +3,12 @@ import { HttpError, safeCompare } from "./validation.js";
 
 export function razorpayConfigured() { return !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET); }
 
-export async function razorpay(method, path, body) {
+export async function razorpay(method, path, body, extraHeaders = {}) {
   if (!razorpayConfigured()) throw new HttpError(503, "Online payments are unavailable. No payment has been taken.");
   const auth = Buffer.from(process.env.RAZORPAY_KEY_ID + ":" + process.env.RAZORPAY_KEY_SECRET).toString("base64");
   let response;
   try {
-    response = await fetch("https://api.razorpay.com/v1" + path, { method, headers: { Authorization: "Basic " + auth, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) });
+    response = await fetch("https://api.razorpay.com/v1" + path, { method, headers: { Authorization: "Basic " + auth, ...(body ? { "Content-Type": "application/json" } : {}), ...extraHeaders }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) });
   } catch { throw new HttpError(502, "The payment provider is unreachable. Please try again."); }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new HttpError(502, "Payment could not be prepared or confirmed. Please check My orders.");

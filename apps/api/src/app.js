@@ -16,6 +16,7 @@ import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, val
 import { razorpay, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { issueInvoice, merchantGstRegistered } from "./invoice.js";
 import { paymentReadiness } from "./paymentReadiness.js";
+import { parseCancellation, visibleCancellation, applyRefundWebhook } from "./cancellations.js";
 
 const cookieName = "cg_session";
 const hours = 60 * 60 * 1000;
@@ -23,7 +24,7 @@ const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => paymentReadiness().ready;
 const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
-const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
+const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
 async function deliveryAssignment(pincode) {
   const area = await ServiceArea.findOne({ pincode, active: true }).lean();
@@ -110,6 +111,10 @@ export function createApp() {
     try {
       if (!Buffer.isBuffer(req.body) || !validWebhookSignature(req.body, req.get("X-Razorpay-Signature"))) throw new HttpError(401, "Invalid webhook signature.");
       const event = JSON.parse(req.body.toString("utf8"));
+      if (["refund.processed", "refund.failed"].includes(event.event)) {
+        await applyRefundWebhook(event);
+        return res.status(200).json({ received: true });
+      }
       if (!["payment.captured", "order.paid"].includes(event.event)) return res.status(200).json({ received: true });
       const paymentId = event.payload?.payment?.entity?.id;
       const orderId = event.payload?.payment?.entity?.order_id || event.payload?.order?.entity?.id;
@@ -324,12 +329,12 @@ export function createApp() {
   app.get("/api/orders/:reference/invoice", authenticated, async (req, res) => {
     const order = await Order.findOne({ reference: req.params.reference, customerPhone: req.customer }).lean();
     if (!order) throw new HttpError(404, "Order not found.");
-    if (order.paymentStatus !== "paid") throw new HttpError(409, "Invoice will be available after payment confirmation.");
+    if (!["paid", "refunded"].includes(order.paymentStatus)) throw new HttpError(409, "Receipt will be available after payment confirmation.");
     if (!issueInvoice(order, res)) throw new HttpError(503, "Merchant receipt settings are not configured yet.");
   });
   app.post("/api/orders/:reference/cancellation", authenticated, async (req, res) => {
     const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: { $in: ["paid", "test_cod"] }, status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
-      { $set: { cancellation: { reason: text(req.body?.reason || "", 300, false), requestedAt: new Date(), status: "requested" } } }, { new: true });
+      { $set: { cancellation: parseCancellation(req.body) } }, { new: true });
     if (!order) throw new HttpError(409, "This order can't accept a cancellation request. Please contact support.");
     res.status(201).json({ reference: order.reference, status: "requested" });
   });

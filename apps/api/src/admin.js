@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Upload } from "./models.js";
 import { HttpError, text } from "./validation.js";
 import { registerAdminGalleryRoutes } from "./gallery.js";
+import { registerCancellationAdminRoutes, visibleCancellation } from "./cancellations.js";
 
 const scrypt = promisify(rawScrypt);
 const cookieName = "cg_admin_session";
@@ -31,7 +32,7 @@ const emailAddress = (value) => {
   return result;
 };
 const visibleUser = (user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.role, branchId: user.branchId ? String(user.branchId) : null, active: user.active });
-const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: order.cancellation, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
+const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
 const scoped = (req) => req.admin.role === "super_admin" ? {} : { branchId: req.admin.branchId };
 
 export async function hashPassword(password) {
@@ -193,7 +194,7 @@ export function createAdminRouter() {
   });
   router.get("/orders/attention", async (req, res) => {
     // Query only paid orders still waiting for the first staff acceptance.
-    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $ne: "requested" } };
+    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $nin: ["requested", "approved"] } };
     const [count, orders] = await Promise.all([
       Order.countDocuments(filter),
       Order.find(filter).sort({ createdAt: -1 }).limit(20).lean()
@@ -205,10 +206,11 @@ export function createAdminRouter() {
     const allowed = { confirmed: "preparing", preparing: "out_for_delivery", out_for_delivery: "delivered" };
     const previous = Object.keys(allowed).find((key) => allowed[key] === next);
     if (!previous) throw new HttpError(400, "Invalid order transition.");
-    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req), status: previous, paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $ne: "requested" } }, { $set: { status: next } }, { new: true });
+    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req), status: previous, paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $nin: ["requested", "approved"] } }, { $set: { status: next } }, { new: true });
     if (!order) throw new HttpError(409, "Order not found or its status has changed.");
     res.json({ order: visibleOrder(order) });
   });
+  registerCancellationAdminRoutes(router, requireSuper, visibleOrder);
   router.post("/orders/:reference/cancellation-rejection", requireSuper, async (req, res) => {
     const reason = text(req.body?.reason, 300);
     const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), "cancellation.status": "requested", paymentStatus: { $in: ["paid", "test_cod"] } },
@@ -223,9 +225,9 @@ export function createAdminRouter() {
     if (!target) throw new HttpError(404, "Active destination branch not found.");
     const current = await Order.findOne({ reference }).lean();
     if (!current) throw new HttpError(404, "Order not found.");
-    if (["delivered", "cancelled"].includes(current.status)) throw new HttpError(409, "Completed orders cannot be reassigned.");
+    if (["delivered", "cancelled"].includes(current.status) || ["requested", "approved"].includes(current.cancellation?.status)) throw new HttpError(409, "Completed or cancellation-requested orders cannot be reassigned.");
     if (String(current.branchId) === String(target._id)) throw new HttpError(409, "Order is already assigned to that branch.");
-    const order = await Order.findOneAndUpdate({ _id: current._id, branchId: current.branchId, status: current.status }, { $set: { branchId: target._id }, $push: { assignmentHistory: { from: current.branchId, to: target._id, by: req.admin._id, reason, at: new Date() } } }, { new: true });
+    const order = await Order.findOneAndUpdate({ _id: current._id, branchId: current.branchId, status: current.status, "cancellation.status": { $nin: ["requested", "approved"] } }, { $set: { branchId: target._id }, $push: { assignmentHistory: { from: current.branchId, to: target._id, by: req.admin._id, reason, at: new Date() } } }, { new: true });
     if (!order) throw new HttpError(409, "Order changed. Reload and try again.");
     res.json({ order: visibleOrder(order) });
   });
