@@ -114,3 +114,23 @@
   .admin-toolbar select,.admin-fields input,.admin-fields select,.admin-fields textarea,.admin-login-card input { font-size:16px; }
   .admin-login-card { padding:25px; }
 }
+
+
+/* Live category management: readable and touch-friendly from 320px to desktop. */
+.admin-category-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:14px; }
+.admin-category-entry { border:1px solid var(--line); padding:17px; border-radius:12px; background:#fcfdfa; min-width:0; }
+.admin-category-entry-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.admin-category-entry-head strong { color:var(--forest); font-size:16px; overflow-wrap:anywhere; }
+.admin-category-entry p { margin:9px 0 7px; }
+.admin-category-entry small { display:block; line-height:1.5; color:var(--muted); overflow-wrap:anywhere; }
+.admin-category-entry .admin-actions { margin-top:12px; }
+.admin-category-entry button { min-height:44px; }
+.admin-category-manager .admin-fields p.admin-wide { grid-column:1/-1; }
+@media(max-width:580px) {
+  .admin-category-grid { grid-template-columns:minmax(0,1fr); }
+  .admin-category-manager .admin-card-head > button { min-height:44px; }
+  .admin-category-entry .admin-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .admin-category-entry .admin-actions button { min-width:0; }
+  .admin-product-manager .admin-product-entry > button:not(:first-child) { min-height:44px; }
+  .admin-product-manager .admin-toolbar input[type="search"] { min-width:0; width:100%; font-size:16px; }
+}
