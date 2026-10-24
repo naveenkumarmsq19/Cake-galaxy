@@ -15,7 +15,7 @@ import { createProductGalleryRouter } from "./gallery.js";
 import { HttpError, phoneNumber, text, deliveryDate, priceItem, safeCompare, validateDeliverySlot, deliveryLocation } from "./validation.js";
 import { razorpay, sendOtp, verifyOtp, validPaymentSignature, validWebhookSignature, sendWhatsApp } from "./providers.js";
 import { issueInvoice, merchantGstRegistered } from "./invoice.js";
-import { paymentReadiness } from "./paymentReadiness.js";
+import { paymentReadiness, codReadiness } from "./paymentReadiness.js";
 import { imageKitProduct } from "./imageKitProduct.js";
 import { parseCancellation, visibleCancellation, applyRefundWebhook } from "./cancellations.js";
 
@@ -24,8 +24,9 @@ const hours = 60 * 60 * 1000;
 const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 PM"];
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => paymentReadiness().ready;
+const codReady = () => codReadiness().ready;
 const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
-const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
+const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : (order.paymentMethod === "cod" || order.paymentStatus?.startsWith("cod_")) ? "COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
 async function deliveryAssignment(pincode) {
   const area = await ServiceArea.findOne({ pincode, active: true }).lean();
@@ -247,19 +248,25 @@ export function createApp() {
     const testCodEnabled = !!session && testPhoneEnabled(session.phone);
     res.setHeader("Cache-Control", "no-store");
     const paymentsEnabled = merchantReady();
-    res.json({ paymentsEnabled, testCodEnabled, gstRegistered: merchantGstRegistered(), keyId: paymentsEnabled ? process.env.RAZORPAY_KEY_ID : "", taxRate: paymentsEnabled || testCodEnabled ? Number(process.env.GST_RATE_PERCENT || "0") : null });
+    const codEnabled = codReady();
+    res.json({ paymentsEnabled, codEnabled, testCodEnabled, gstRegistered: merchantGstRegistered(), keyId: paymentsEnabled ? process.env.RAZORPAY_KEY_ID : "", taxRate: paymentsEnabled || codEnabled || testCodEnabled ? Number(process.env.GST_RATE_PERCENT || "0") : null });
   });
 
   app.post("/api/checkout/orders", authenticated, async (req, res) => {
     const body = req.body || {};
-    const testCod = body.preferredMethod === "test_cod";
-    if (testCod ? !testPhoneEnabled(req.customer) : !merchantReady()) throw new HttpError(503, "This payment option is unavailable. No payment has been taken.");
+    const method = body.preferredMethod;
+    if (!["online", "cod", "test_cod"].includes(method)) throw new HttpError(400, "Choose a valid payment method.");
+    const testCod = method === "test_cod";
+    const cod = method === "cod";
+    if ((testCod && !testPhoneEnabled(req.customer)) || (cod && !codReady()) || (method === "online" && !merchantReady()))
+      throw new HttpError(503, "This payment option is unavailable. No payment has been taken.");
     const idempotencyKey = text(body.idempotencyKey, 64);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) throw new HttpError(400, "Please refresh checkout and try again.");
     const existing = await Order.findOne({ customerPhone: req.customer, idempotencyKey });
     if (existing) {
-      if (existing.paymentStatus === "test_cod" && testCod) return res.json({ reference: existing.reference, amount: existing.amount, currency: "INR", status: "confirmed", order: returnOrder(existing) });
-      if (existing.paymentStatus === "test_cod" || testCod) throw new HttpError(409, "This order was already submitted with a different payment option. Refresh checkout and try again.");
+      const originalMethod = existing.paymentMethod || (existing.paymentStatus === "test_cod" ? "test_cod" : existing.paymentStatus?.startsWith("cod_") ? "cod" : "online");
+      if (originalMethod !== method) throw new HttpError(409, "This order was already submitted with a different payment option. Refresh checkout and try again.");
+      if (testCod || cod) return res.json({ reference: existing.reference, amount: existing.amount, currency: "INR", status: existing.status, order: returnOrder(existing) });
       if (existing.paymentStatus === "paid") throw new HttpError(409, "This order is already paid. Check My orders.");
       if (!existing.razorpayOrderId) return res.json(await prepareProviderOrder(existing));
       return res.json({ reference: existing.reference, orderId: existing.razorpayOrderId, amount: existing.amount, currency: "INR" });
@@ -310,9 +317,9 @@ export function createApp() {
     const order = await Order.create({ reference, customerPhone: req.customer, sender: { name: senderName, phone: req.customer }, idempotencyKey, items, branchId: branch._id,
       assignmentHistory: [{ from: null, to: branch._id, reason: "pincode", at: new Date() }],
       address: { name: text(address.name, 80), phone: recipientPhone, line1: text(address.line1, 160), line2: text(address.line2 || "", 160, false), pincode, city: text(address.city, 60), ...(address.location ? { location: deliveryLocation(address.location) } : {}) },
-      delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", whatsappConsent: !testCod && address.whatsapp === true,
-      ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : {}) });
-    if (testCod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });
+      delivery, gst, subtotal, deliveryFee: area.deliveryFee, tax, amount, currency: "INR", paymentMethod: method, whatsappConsent: !testCod && address.whatsapp === true,
+      ...(testCod ? { testOrder: true, paymentStatus: "test_cod", status: "confirmed", notificationStatus: "skipped" } : cod ? { paymentStatus: "cod_pending", status: "confirmed" } : {}) });
+    if (testCod || cod) return res.status(201).json({ reference, amount, currency: "INR", status: "confirmed", order: returnOrder(order) });
     res.status(201).json(await prepareProviderOrder(order));
   });
 
@@ -338,11 +345,11 @@ export function createApp() {
   app.get("/api/orders/:reference/invoice", authenticated, async (req, res) => {
     const order = await Order.findOne({ reference: req.params.reference, customerPhone: req.customer }).lean();
     if (!order) throw new HttpError(404, "Order not found.");
-    if (!["paid", "refunded"].includes(order.paymentStatus)) throw new HttpError(409, "Receipt will be available after payment confirmation.");
+    if (!["paid", "refunded", "cod_paid"].includes(order.paymentStatus)) throw new HttpError(409, "Receipt will be available after payment confirmation.");
     if (!issueInvoice(order, res)) throw new HttpError(503, "Merchant receipt settings are not configured yet.");
   });
   app.post("/api/orders/:reference/cancellation", authenticated, async (req, res) => {
-    const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: { $in: ["paid", "test_cod"] }, status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
+    const order = await Order.findOneAndUpdate({ reference: req.params.reference, customerPhone: req.customer, paymentStatus: { $in: ["paid", "test_cod", "cod_pending"] }, status: { $nin: ["delivered", "cancelled"] }, cancellation: { $exists: false } },
       { $set: { cancellation: parseCancellation(req.body) } }, { new: true });
     if (!order) throw new HttpError(409, "This order can't accept a cancellation request. Please contact support.");
     res.status(201).json({ reference: order.reference, status: "requested" });

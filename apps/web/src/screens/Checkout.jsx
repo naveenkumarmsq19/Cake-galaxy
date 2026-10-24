@@ -95,9 +95,15 @@ export function Checkout() {
   const [config, setConfig] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
-  // One checkout action: Razorpay itself lets customers choose UPI, card or netbanking.
-  // Keep the private test-phone checkout working without showing extra payment options.
-  const payment = config?.testCodEnabled && !config?.paymentsEnabled ? "test_cod" : "online";
+  const [payment, setPayment] = useState("online");
+  const paymentAvailable = payment === "online" ? config?.paymentsEnabled : payment === "cod" ? config?.codEnabled : config?.testCodEnabled;
+  useEffect(() => {
+    if (!config) return;
+    setPayment((current) => {
+      if ((current === "online" && config.paymentsEnabled) || (current === "cod" && config.codEnabled) || (current === "test_cod" && config.testCodEnabled)) return current;
+      return config.paymentsEnabled ? "online" : config.codEnabled ? "cod" : config.testCodEnabled ? "test_cod" : "online";
+    });
+  }, [config]);
   const attempt = useRef(null);
   useEffect(() => { api("/checkout/config").then(setConfig).catch((error) => setFeedback(error.message)); }, [session.authenticated, session.phone]);
   useEffect(() => {
@@ -117,7 +123,7 @@ export function Checkout() {
       setFeedback("Your selected delivery time is no longer available. Please choose a future date and time.");
       return;
     }
-    if (!(payment === "test_cod" ? config?.testCodEnabled : config?.paymentsEnabled) || !quote?.available) { setFeedback("This payment option or delivery address isn't available. No charge has been made."); return; }
+    if (!paymentAvailable || !quote?.available) { setFeedback("This payment option or delivery address isn't available. No charge has been made."); return; }
     setBusy(true);
     try {
       const fingerprint = JSON.stringify({ cart, sender, address, delivery, payment });
@@ -129,11 +135,12 @@ export function Checkout() {
         gst: null,
         idempotencyKey
       } });
-      if (!data.reference || !Number.isSafeInteger(data.amount) || (payment !== "test_cod" && !data.orderId)) throw new Error("Order couldn't be prepared. No charge has been made.");
+      if (!data.reference || !Number.isSafeInteger(data.amount) || (payment === "online" && !data.orderId)) throw new Error("Order couldn't be prepared. No charge has been made.");
       const expected = subtotal + (quote?.available ? quote.deliveryFee : 0) + Math.round(subtotal * config.taxRate / 100);
       if (!quote?.available || data.amount !== expected) throw new Error("The order total has changed. Please review your bag and delivery details before paying.");
-      if (payment === "test_cod") {
-        if (data.status !== "confirmed" || data.order?.paymentStatus !== "test_cod") throw new Error("Test order confirmation failed. Check My orders before retrying.");
+      if (payment === "test_cod" || payment === "cod") {
+        const expectedStatus = payment === "cod" ? "cod_pending" : "test_cod";
+        if (data.status !== "confirmed" || data.order?.paymentStatus !== expectedStatus) throw new Error("Order confirmation is pending. Check My orders before retrying.");
         setReceipt(data.order); attempt.current = null; clearCart(); router.push("/confirmation?reference=" + encodeURIComponent(data.reference)); return;
       }
       await loadCheckout();
@@ -150,7 +157,12 @@ export function Checkout() {
     finally { setBusy(false); }
   }
 
-  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Your details</h2><p><strong>{sender.name}</strong><br/>+91 {sender.phone} · Verified</p><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p>{address.location && <p><a className="text-link" href={"https://www.openstreetmap.org/?mlat="+address.location.lat+"&mlon="+address.location.lng+"#map=17/"+address.location.lat+"/"+address.location.lng} target="_blank" rel="noreferrer">View delivery pin ↗</a></p>}<p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && payment !== "test_cod" && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !(payment === "test_cod" ? config?.testCodEnabled : config?.paymentsEnabled) || !quote?.available}>{busy ? "Please wait…" : payment === "test_cod" ? "Place test order" : "Pay Now"}</button></div></form></div><Summary taxRate={config?.taxRate} gstRegistered={config?.gstRegistered !== false}/></div></div>;
+  return <div className="wrap page"><div className="checkout-layout"><div><div className="page-heading"><h1>One last look</h1></div><div className="panel checkout-address"><div><h2>Your details</h2><p><strong>{sender.name}</strong><br/>+91 {sender.phone} · Verified</p><h2>Delivering to</h2><p><strong>{address.name}</strong><br/>{address.line1}<br/>{address.line2 && <>{address.line2}<br/></>}{address.city} {address.pincode}<br/>+91 {address.phone}</p>{address.location && <p><a className="text-link" href={"https://www.openstreetmap.org/?mlat="+address.location.lat+"&mlon="+address.location.lng+"#map=17/"+address.location.lat+"/"+address.location.lng} target="_blank" rel="noreferrer">View delivery pin ↗</a></p>}<p className="subtle">{delivery.date} · {delivery.slot}</p></div><Link href="/address" className="text-link">Edit</Link></div><form onSubmit={submit}><div className="panel"><h2>Payment method</h2>
+        {config?.paymentsEnabled && <label className="check-label"><input type="radio" name="paymentMethod" checked={payment === "online"} onChange={() => setPayment("online")}/> Pay online (UPI, card or netbanking)</label>}
+        {config?.codEnabled && <label className="check-label"><input type="radio" name="paymentMethod" checked={payment === "cod"} onChange={() => setPayment("cod")}/> Cash on Delivery (COD) — pay when your cake arrives</label>}
+        {config?.testCodEnabled && <label className="check-label"><input type="radio" name="paymentMethod" checked={payment === "test_cod"} onChange={() => setPayment("test_cod")}/> Cash on Delivery · Test only</label>}
+        {payment === "cod" && <p className="subtle">No online payment now. Please keep the exact amount ready for delivery.</p>}
+        <label className="check-label"><input type="checkbox" required/>I agree to the terms and cancellation policy.</label><p className="subtle"><Link href="/policy?type=terms">Terms</Link> · <Link href="/policy?type=refund">Cancellation & refunds</Link></p><p className="form-message" role="status">{feedback}</p>{!config?.paymentsEnabled && !config?.codEnabled && !config?.testCodEnabled && <p className="subtle">Online payment is unavailable until the store is activated.</p>}{!quote?.available && <p className="subtle">Delivery availability is still unconfirmed. <Link href="/address">Check address</Link></p>}<button className="button full" disabled={busy || !paymentAvailable || !quote?.available}>{busy ? "Please wait…" : payment === "test_cod" ? "Place test order" : payment === "cod" ? "Place COD order" : "Pay Now"}</button></div></form></div><Summary taxRate={config?.taxRate} gstRegistered={config?.gstRegistered !== false}/></div></div>;
 }
 
 export function Login() {
@@ -170,8 +182,8 @@ export function Confirmation() {
   const [feedback, setFeedback] = useState("");
   const reference = params.get("reference");
   useEffect(() => { if (reference && session.authenticated) api("/orders/" + encodeURIComponent(reference)).then((result) => setOrder(result.order)).catch((error) => setFeedback(error.message)); }, [reference, session.authenticated]);
-  if (!order || order.reference !== reference || !(["paid", "test_cod"].includes(order.paymentStatus))) return <div className="wrap page empty-state"><h1>Checking your order</h1><p>{feedback || "We'll show your confirmation once payment is verified."}</p><Link className="button" href="/orders">My orders</Link></div>;
-  return <div className="wrap page empty-state"><h1>{order.testOrder ? "Your test order is confirmed" : "Your order is confirmed"}</h1><p>Order {order.reference} · {money(order.amount)}</p>{order.testOrder && <p>No payment was collected. This is a test order.</p>}<p>{order.deliveryLabel}</p><button className="button" type="button" onClick={() => router.push("/orders")}>View my orders</button></div>;
+  if (!order || order.reference !== reference || !(["paid", "test_cod", "cod_pending", "cod_paid"].includes(order.paymentStatus))) return <div className="wrap page empty-state"><h1>Checking your order</h1><p>{feedback || "We'll show your confirmation once payment is verified."}</p><Link className="button" href="/orders">My orders</Link></div>;
+  return <div className="wrap page empty-state"><h1>{order.testOrder ? "Your test order is confirmed" : "Your order is confirmed"}</h1><p>Order {order.reference} · {money(order.amount)}</p>{order.testOrder && <p>No payment was collected. This is a test order.</p>}<p>{order.paymentMethod === "cod" ? (order.paymentStatus === "cod_paid" ? "Cash received. Thank you!" : "Cash on Delivery — payment due when your order arrives.") : ""}</p><p>{order.deliveryLabel}</p><button className="button" type="button" onClick={() => router.push("/orders")}>View my orders</button></div>;
 }
 
 const cancellationOptions = [
@@ -211,7 +223,7 @@ export function Orders() {
       const updated = await api("/orders");
       setOrders(updated.orders || []);
       setCancelOpen("");
-      setFeedback("Cancellation request sent. Cake Galaxy will review it; payment is not refunded automatically.");
+      setFeedback(order.paymentMethod === "cod" ? "Cancellation request sent. Cake Galaxy will review it; no cash has been collected." : "Cancellation request sent. Cake Galaxy will review it; payment is not refunded automatically.");
     } catch (error) { setFeedback(error.message); }
     finally { setRequesting(""); }
   }
@@ -222,21 +234,21 @@ export function Orders() {
     {feedback && <p className="form-message" role="status">{feedback}</p>}
     {orders.length ? <div className="orders-grid">{orders.map((order) => {
       const cancellation = order.cancellation;
-      const refundable = ["paid", "test_cod"].includes(order.paymentStatus) &&
+      const refundable = ["paid", "test_cod", "cod_pending"].includes(order.paymentStatus) &&
         !["delivered", "cancelled"].includes(order.status) && !cancellation;
       const draft = drafts[order.reference] || { category: "", reason: "" };
       return <article className="panel" key={order.reference}>
         <h2>Order {order.reference}</h2>
         <p>{order.statusLabel || order.status} · {money(order.amount)}</p>
         <p className="subtle">{order.deliveryLabel}</p>
-        {order.testOrder && <p className="subtle">Test order · Cash on delivery · No payment collected</p>}
-        {["paid", "refunded"].includes(order.paymentStatus) && <a href={apiRoot + "/orders/" + encodeURIComponent(order.reference) + "/invoice"} target="_blank" rel="noopener noreferrer" className="text-link">Download {order.paymentStatus === "refunded" ? "payment receipt" : "invoice or receipt"}</a>}
+        {order.testOrder && <p className="subtle">Test order · Cash on delivery · No payment collected</p>}{order.paymentMethod === "cod" && <p className="subtle">{order.paymentStatus === "cod_paid" ? "COD · Cash collected" : "Cash on Delivery · Payment pending"}</p>}
+        {["paid", "refunded", "cod_paid"].includes(order.paymentStatus) && <a href={apiRoot + "/orders/" + encodeURIComponent(order.reference) + "/invoice"} target="_blank" rel="noopener noreferrer" className="text-link">Download {order.paymentStatus === "refunded" ? "payment receipt" : "invoice or receipt"}</a>}
         {cancellation && <div className="panel" role="status">
           <strong>Cancellation: {cancellation.status === "requested" ? "Awaiting store review" : cancellation.status === "approved" ? "Approved" : "Declined"}</strong>
           <p className="subtle">Reason: {cancellation.reason}</p>
           {cancellation.status === "rejected" && <p>Store response: {cancellation.reviewReason || "Cancellation declined."}</p>}
           {cancellation.status === "approved" && <>
-            {order.testOrder ? <p>Test order cancelled. No payment or refund was required.</p>
+            {order.testOrder || order.paymentMethod === "cod" ? <p>{order.testOrder ? "Test order" : "COD order"} cancelled. No payment or refund was required.</p>
               : cancellation.refund?.status === "processed" ? <p>Refund processed by Razorpay: {money(cancellation.refund.amount)}. Bank credit timing may vary.</p>
               : cancellation.refund?.status === "failed" ? <p>Refund needs store attention. Please contact Cake Galaxy support.</p>
               : cancellation.refund?.status === "ready" ? <p>Store approved. Refund has not been initiated yet.</p>

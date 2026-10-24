@@ -17,3 +17,18 @@ export function paymentReadiness() {
     missing: Object.entries(checks).filter(([, enabled]) => !enabled).map(([key]) => key)
   };
 }
+
+/** COD can be offered without Razorpay, but only after merchant and store approvals. */
+export function codReadiness() {
+  const checks = {
+    cod_enabled: process.env.COD_ENABLED === "true",
+    merchant_legal_name: Boolean(process.env.MERCHANT_LEGAL_NAME?.trim()),
+    receipt_or_tax_invoice_configuration: invoiceConfigured(),
+    catalogue_approved: process.env.CATALOG_APPROVED === "true",
+    policies_approved: process.env.POLICIES_APPROVED === "true"
+  };
+  return {
+    ready: Object.values(checks).every(Boolean),
+    missing: Object.entries(checks).filter(([, enabled]) => !enabled).map(([key]) => key)
+  };
+}

@@ -66,6 +66,14 @@ The Next.js app can also produce a static preview with `CAKE_STATIC_EXPORT=1 npm
 
 The bundled photographs are design references. Replace them with the merchant's approved product photographs before launch. Sources: [chocolate](https://images.unsplash.com/photo-1578985545062-69928b1d9587), [celebration](https://images.unsplash.com/photo-1558301211-0d8c8ddee6ec), [floral](https://images.unsplash.com/photo-1562777717-dc6984f65a63), [rainbow](https://images.unsplash.com/photo-1464349095431-e9a21285b5f3), [custom](https://images.unsplash.com/photo-1535141192574-5d4897c12636), [cupcakes](https://images.unsplash.com/photo-1587668178277-295251f900ce). The sage celebration banner is a bundled original visual.
 
+### Live Cash on Delivery (COD)
+
+The checkout offers **Pay online** and **Cash on Delivery** when their respective server-side readiness checks pass. COD never calls Razorpay and is available only for active service-area pincodes and verified customer accounts. The normal delivery fee and configured tax are still included.
+
+To activate COD, review the merchant's legal identity, tax/receipt settings, catalogue, and public policies, then set `COD_ENABLED=true` **on the Render API service** and redeploy. `CATALOG_APPROVED=true` and `POLICIES_APPROVED=true` must be approved separately. Without that configuration, COD remains safely disabled. To turn it off, set `COD_ENABLED=false` and redeploy; existing COD orders remain visible.
+
+New COD orders start `status=confirmed` and `paymentStatus=cod_pending`; staff receive the existing new-order alert, can accept and prepare orders, and must explicitly confirm **cash received** when marking the order delivered. That final action atomically sets `paymentStatus=cod_paid` and records the collector/time. A receipt becomes available only after collection. A COD cancellation before collection requires staff review but has no Razorpay refund. Do not confirm collection unless cash was actually received; there is no automated cash reconciliation or courier collection integration.
+
 ### Temporary customer checkout test
 
 For an end-to-end customer and branch workflow test before payment activation, set these **Render API environment variables** and redeploy:
