@@ -33,7 +33,7 @@ const emailAddress = (value) => {
   return result;
 };
 const visibleUser = (user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.role, branchId: user.branchId ? String(user.branchId) : null, active: user.active });
-const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
+const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), codCollectedAt: order.codCollectedAt || null, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
 const scoped = (req) => req.admin.role === "super_admin" ? {} : { branchId: req.admin.branchId };
 
 export async function hashPassword(password) {
@@ -194,8 +194,8 @@ export function createAdminRouter() {
     res.json({ orders: orders.map(visibleOrder) });
   });
   router.get("/orders/attention", async (req, res) => {
-    // Query only paid orders still waiting for the first staff acceptance.
-    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $nin: ["requested", "approved"] } };
+    // Query confirmed prepaid, COD and test orders still waiting for staff acceptance.
+    const filter = { ...scoped(req), status: "confirmed", paymentStatus: { $in: ["paid", "test_cod", "cod_pending"] }, "cancellation.status": { $nin: ["requested", "approved"] } };
     const [count, orders] = await Promise.all([
       Order.countDocuments(filter),
       Order.find(filter).sort({ createdAt: -1 }).limit(20).lean()
@@ -207,14 +207,23 @@ export function createAdminRouter() {
     const allowed = { confirmed: "preparing", preparing: "out_for_delivery", out_for_delivery: "delivered" };
     const previous = Object.keys(allowed).find((key) => allowed[key] === next);
     if (!previous) throw new HttpError(400, "Invalid order transition.");
-    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req), status: previous, paymentStatus: { $in: ["paid", "test_cod"] }, "cancellation.status": { $nin: ["requested", "approved"] } }, { $set: { status: next } }, { new: true });
-    if (!order) throw new HttpError(409, "Order not found or its status has changed.");
+    const filter = { reference: text(req.params.reference, 40), ...scoped(req), status: previous, "cancellation.status": { $nin: ["requested", "approved"] } };
+    // Collect cash and mark delivered in one atomic action. Never deliver unpaid COD.
+    if (next === "delivered" && req.body?.codCollected === true) {
+      const order = await Order.findOneAndUpdate({ ...filter, paymentMethod: "cod", paymentStatus: "cod_pending" },
+        { $set: { status: "delivered", paymentStatus: "cod_paid", codCollectedAt: new Date(), codCollectedBy: req.admin._id } }, { new: true });
+      if (!order) throw new HttpError(409, "COD payment collection could not be confirmed. Refresh the order.");
+      return res.json({ order: visibleOrder(order) });
+    }
+    const allowedPayment = next === "delivered" ? ["paid", "test_cod"] : ["paid", "test_cod", "cod_pending"];
+    const order = await Order.findOneAndUpdate({ ...filter, paymentStatus: { $in: allowedPayment } }, { $set: { status: next } }, { new: true });
+    if (!order) throw new HttpError(409, "Order not found, payment is uncollected, or its status has changed.");
     res.json({ order: visibleOrder(order) });
   });
   registerCancellationAdminRoutes(router, requireSuper, visibleOrder);
   router.post("/orders/:reference/cancellation-rejection", requireSuper, async (req, res) => {
     const reason = text(req.body?.reason, 300);
-    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), "cancellation.status": "requested", paymentStatus: { $in: ["paid", "test_cod"] } },
+    const order = await Order.findOneAndUpdate({ reference: text(req.params.reference, 40), "cancellation.status": "requested", paymentStatus: { $in: ["paid", "test_cod", "cod_pending"] } },
       { $set: { "cancellation.status": "rejected", "cancellation.reviewedAt": new Date(), "cancellation.reviewedBy": req.admin._id, "cancellation.reviewReason": reason } }, { new: true });
     if (!order) throw new HttpError(409, "Cancellation request has already changed.");
     res.json({ order: visibleOrder(order) });
