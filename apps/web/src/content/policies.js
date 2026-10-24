@@ -27,13 +27,13 @@ export const policies = {
         "paragraphs": [
           "Available cake sizes, selected options, add-ons, eggless charges, any displayed discount, delivery fee and applicable tax are shown for review before payment. Prices are rechecked by the server when an order is submitted; a changed total must be reviewed again.",
           "The current promotional pricing shown by the site offers 10% off eligible individual cakes weighing more than 1 kg. A 1 kg cake does not qualify. Promotional pricing and product availability may be updated before you place an order.",
-          "Online payments are processed through Razorpay when enabled. We do not ask customers to send card details through chat. Temporary test-only orders, if displayed to an authorized tester, collect no payment and are not normal customer orders."
+          "Online payments are processed through Razorpay when enabled. If Cash on Delivery is offered at checkout, the customer pays the total shown to the delivery representative when the cake arrives. No online payment is collected for COD orders. We do not ask customers to send card details through chat. Temporary test-only orders, if displayed to an authorized tester, collect no payment and are not normal customer orders."
         ]
       },
       {
         "heading": "4. Acceptance and order changes",
         "paragraphs": [
-          "After payment is confirmed, the order appears in My Orders. Availability, preparation and delivery details are subject to the accepted order. We may contact you if an essential item or custom design is unavailable and propose a suitable alternative or cancellation/refund.",
+          "After online payment is confirmed, or immediately after a Cash on Delivery order is accepted at checkout, the order appears in My Orders. Availability, preparation and delivery details are subject to the accepted order. We may contact you if an essential item or custom design is unavailable and propose a suitable alternative or cancellation/refund.",
           "Once preparation starts, changes to flavour, size, message, delivery address or delivery date may not be possible. Please contact the business promptly through the published support channel."
         ]
       },
@@ -89,7 +89,7 @@ export const policies = {
         "heading": "5. Refund method and timing",
         "paragraphs": [
           "Approved online-payment refunds will be initiated through the original payment provider or another lawful method agreed with the customer. The actual credit time depends on payment-provider and bank processing. Support will communicate the reference and expected timeline when a refund is initiated.",
-          "A failed, pending or duplicate-looking transaction should be reported with its payment reference; do not assume it was captured until the payment status is confirmed. Test-only cash-on-delivery orders do not involve a payment refund."
+          "A failed, pending or duplicate-looking transaction should be reported with its payment reference; do not assume it was captured until the payment status is confirmed. Cash on Delivery orders cancelled before collection have no payment to refund; any dispute after cash collection is handled by store support. Test-only cash-on-delivery orders do not involve a payment refund."
         ]
       },
       {
