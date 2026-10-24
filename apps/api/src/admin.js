@@ -104,7 +104,7 @@ export function createAdminRouter() {
       Order.countDocuments(scope),
       Order.countDocuments({ ...scope, status: { $in: ["confirmed", "preparing", "out_for_delivery"] } }),
       CustomRequest.countDocuments({ ...scope, status: "requested" }),
-      Order.aggregate([{ $match: { ...scope, paymentStatus: "paid" } }, { $group: { _id: null, amount: { $sum: "$amount" } } }])
+      Order.aggregate([{ $match: { ...scope, paymentStatus: { $in: ["paid", "cod_paid"] } } }, { $group: { _id: null, amount: { $sum: "$amount" } } }])
     ]);
     res.json({ orders, pending, requests, revenue: revenue[0]?.amount || 0 });
   });
