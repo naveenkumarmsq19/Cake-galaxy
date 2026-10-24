@@ -135,7 +135,7 @@ test("branch manager order reads and writes are scoped to their branch", async (
       const update = await fetch(base + "/api/admin/orders/CG1/status", { method: "PATCH", headers: { ...headers, "X-CSRF-Token": csrf, "Content-Type": "application/json" }, body: JSON.stringify({ status: "preparing" }) });
       assert.equal(update.status, 409);
       assert.equal(String(writeFilter.branchId), String(id));
-      assert.deepEqual(writeFilter.paymentStatus, { $in: ["paid", "test_cod"] });
+      assert.deepEqual(writeFilter.paymentStatus, { $in: ["paid", "test_cod", "cod_pending"] });
     });
   } finally {
     AdminSession.findOne = original.session; AdminUser.findById = original.user;
@@ -205,7 +205,7 @@ test("checkout verifies the sender while preserving a different recipient phone"
     : originals.fetch(url, options);
   try {
     await withServer(async (base) => {
-      const body = { idempotencyKey: randomUUID(), items: [{ productId: "chocolate-truffle", size: 0.5, quantity: 1, flavour: "Chocolate", eggless: false }], sender: { name: "Naveen", phone: "9876543210" }, address: { name: "Friend", phone: "9123456789", line1: "1 Main Road", city: "Bengaluru", pincode: "560073", whatsapp: true }, delivery: { date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 86400000)), slot: "10 AM – 1 PM" } };
+      const body = { idempotencyKey: randomUUID(), preferredMethod: "online", items: [{ productId: "chocolate-truffle", size: 0.5, quantity: 1, flavour: "Chocolate", eggless: false }], sender: { name: "Naveen", phone: "9876543210" }, address: { name: "Friend", phone: "9123456789", line1: "1 Main Road", city: "Bengaluru", pincode: "560073", whatsapp: true }, delivery: { date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 86400000)), slot: "10 AM – 1 PM" } };
       const headers = { Cookie: "cg_session=" + "c".repeat(64), "X-CSRF-Token": csrf, "Content-Type": "application/json" };
       const response = await originals.fetch(base + "/api/checkout/orders", { method: "POST", headers, body: JSON.stringify(body) });
       assert.equal(response.status, 201);
