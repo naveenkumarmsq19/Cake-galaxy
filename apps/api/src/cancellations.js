@@ -38,11 +38,11 @@ export function registerCancellationAdminRoutes(router, requireSuper, visibleOrd
   router.post("/orders/:reference/cancellation-approval", requireSuper, async (req, res) => {
     const reference = text(req.params.reference, 40);
     const current = await Order.findOne({ reference, "cancellation.status": "requested" }).lean();
-    if (!current || !["paid", "test_cod"].includes(current.paymentStatus) ||
+    if (!current || !["paid", "test_cod", "cod_pending"].includes(current.paymentStatus) ||
       ["delivered", "cancelled"].includes(current.status)) throw new HttpError(409, "Cancellation request has already changed.");
     if (current.paymentStatus === "paid" && !current.razorpayPaymentId) throw new HttpError(409, "Captured payment ID missing; contact support.");
     const now = new Date();
-    const refund = current.paymentStatus === "test_cod"
+    const refund = ["test_cod", "cod_pending"].includes(current.paymentStatus)
       ? { status: "not_required", amount: 0, updatedAt: now }
       : { status: "ready", amount: current.amount, idempotencyKey: randomUUID(), updatedAt: now };
     const order = await Order.findOneAndUpdate({
