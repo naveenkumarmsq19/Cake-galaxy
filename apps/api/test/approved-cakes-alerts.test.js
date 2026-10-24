@@ -56,7 +56,7 @@ test("branch manager's attention endpoint only reports paid, unaccepted and bran
     assert.equal(String(countFilter.branchId),String(branchId));
     assert.equal(String(findFilter.branchId),String(branchId));
     assert.equal(countFilter.status,"confirmed");
-    assert.deepEqual(countFilter.paymentStatus,{$in:["paid","test_cod"]});
+    assert.deepEqual(countFilter.paymentStatus,{$in:["paid","test_cod","cod_pending"]});
     assert.deepEqual(countFilter["cancellation.status"],{$nin:["requested","approved"]});
   }finally{
     await new Promise(resolve=>server.close(resolve));
