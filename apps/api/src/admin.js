@@ -248,7 +248,24 @@ export function createAdminRouter() {
   router.patch("/custom-requests/:reference", async (req, res) => {
     const status = text(req.body?.status, 24);
     if (!["reviewing", "quoted", "closed"].includes(status)) throw new HttpError(400, "Invalid custom request status.");
-    const request = await CustomRequest.findOneAndUpdate({ reference: text(req.params.reference, 40), ...scoped(req) }, { $set: { status } }, { new: true });
+    const changes = { status };
+    if (status === "quoted") {
+      // Final quotation is set only by an authenticated admin, never by the customer.
+      const quotedPrice = req.body?.quotedPrice;
+      if (!Number.isSafeInteger(quotedPrice) || quotedPrice < 100 || quotedPrice > 100_000_000) {
+        throw new HttpError(400, "Enter a valid final cake quote in paise (₹1 to ₹10,00,000).");
+      }
+      changes.quotedPrice = quotedPrice;
+      changes.quoteNotes = text(req.body?.quoteNotes ?? "", 500, false).trim();
+      changes.quotedAt = new Date();
+      changes.quotedBy = req.admin._id;
+    } else if (req.body?.quotedPrice !== undefined || req.body?.quoteNotes !== undefined) {
+      throw new HttpError(400, "Choose Quoted to save a final quote.");
+    }
+    const request = await CustomRequest.findOneAndUpdate(
+      { reference: text(req.params.reference, 40), ...scoped(req) },
+      { $set: changes }, { new: true, runValidators: true }
+    );
     if (!request) throw new HttpError(404, "Request not found.");
     res.json({ request });
   });
