@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { addons, designCakeStartingPrice, designCakeTier, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
+import { addons, designCakeTier, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
@@ -109,9 +109,9 @@ export function Product() {
 }
 
 const designCakeTiers = [
-  { id: "basic", name: "Basic", range: "Below ₹600" },
-  { id: "standard", name: "Standard", range: "₹600 – ₹1,000" },
-  { id: "premium", name: "Premium", range: "Above ₹1,000" }
+  { id: "basic", name: "Basic" },
+  { id: "standard", name: "Standard" },
+  { id: "premium", name: "Premium" }
 ];
 
 export function Custom() {
@@ -134,10 +134,6 @@ export function Custom() {
   const available = flavours.filter((product) => designCakeTier(product) === tier);
   const selected = available.find((product) => product.id === productId);
   const weights = selected?.weights?.filter((size) => size >= 1).sort((a, b) => a - b) || [];
-  const item = selected ? { productId: selected.id, size: weightKg, eggless: false, addons: [] } : null;
-  const estimatedCakePrice = selected && weights.includes(weightKg) ? unitPrice(item, selected) : null;
-  const originalCakePrice = selected && weights.includes(weightKg) ? regularUnitPrice(item, selected) : null;
-  const saving = selected && weights.includes(weightKg) ? discountAmount(item, selected) : 0;
 
   function chooseTier(next) {
     setTier(next);
@@ -181,7 +177,7 @@ export function Custom() {
         method: "POST",
         body: { ...data, productId: selected.id, weightKg, customPhone, uploadId: uploaded.id }
       });
-      setFeedback("Request " + result.reference + " received. We'll confirm the design and final price before payment.");
+      setFeedback("Request " + result.reference + " received. Our team will review the design and contact you with the final quote.");
       form.reset();
       setFile(null);
       setProductId("");
@@ -205,21 +201,18 @@ export function Custom() {
       </div>
       <form className="panel" onSubmit={submit}>
         <h2>1. Select your cake flavour</h2>
-        <p className="subtle">Flavour categories use the listed starting-size cake price (usually ½ kg), before discounts. Your selected kg determines the actual cake estimate.</p>
+        <p className="subtle">Choose the cake flavour category you like. Our bakery team will review your design and confirm the final price.</p>
         <div className="option-row" role="group" aria-label="Flavour price category">
           {designCakeTiers.map((option) => <label className="choice" key={option.id}>
             <input type="radio" name="flavourTier" value={option.id} checked={tier === option.id} onChange={() => chooseTier(option.id)}/>
-            <span>{option.name} · {option.range} ({flavours.filter((cake) => designCakeTier(cake) === option.id).length})</span>
+            <span>{option.name} ({flavours.filter((cake) => designCakeTier(cake) === option.id).length})</span>
           </label>)}
         </div>
         <div className="field">
           <label htmlFor="design-flavour">Flavour</label>
           <select id="design-flavour" value={productId} onChange={(event) => chooseFlavour(event.target.value)} disabled={!available.length} required>
             <option value="">Select a {tier} flavour</option>
-            {available.map((product) => {
-              const starting = designCakeStartingPrice(product);
-              return <option value={product.id} key={product.id}>{product.name} · {money(starting.price)} / {starting.size} kg</option>;
-            })}
+            {available.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
           </select>
           {catalogLoaded && !available.length && <p className="subtle">No {tier} flavours in the currently approved price list. Select another category or add approved flavours in Admin.</p>}
           {!catalogLoaded && <p className="subtle">Loading approved cake flavours...</p>}
@@ -231,11 +224,7 @@ export function Custom() {
               {weights.map((size) => <option key={size} value={size}>{size} kg</option>)}
             </select>
           </div>
-          {estimatedCakePrice !== null && <div className="panel">
-            <h3>Estimated cake base price: {money(estimatedCakePrice)}</h3>
-            {saving > 0 && <p className="subtle">10% cake discount: −{money(saving)} (before discount: {money(originalCakePrice)})</p>}
-            <p className="subtle">Based on {selected.name} · {weightKg} kg. Custom decoration, delivery and applicable taxes are not included. The bakery confirms your final design price before payment.</p>
-          </div>}
+          <p className="subtle">Your final cake price will be provided by our team after reviewing the design, flavour and {weightKg} kg weight.</p>
           <h2>2. Upload your sample design</h2>
           <label className="upload-zone" htmlFor="design-file">Upload your reference cake image
             <input key={selected.id} id="design-file" type="file" accept="image/jpeg,image/png" required
@@ -253,10 +242,7 @@ export function Custom() {
             <small>JPG / PNG up to 10 MB. {file ? "Selected: " + file.name : "Select the design photo you want."}</small>
           </label>
           <h2>3. Celebration and contact details</h2>
-          <div className="field-row">
-            <div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div>
-            <div className="field"><label htmlFor="budget">Budget (optional)</label><input id="budget" name="budget" type="number" min="0" placeholder="₹"/></div>
-          </div>
+          <div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div>
           <div className="field"><label htmlFor="notes">Design notes</label><textarea id="notes" name="notes" maxLength={2000} placeholder="Colours, theme, name and age"/></div>
           <div className="field-row">
             <div className="field"><label htmlFor="requiredDate">Required date</label><input id="requiredDate" name="requiredDate" type="date" required/></div>

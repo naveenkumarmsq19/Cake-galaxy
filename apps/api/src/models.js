@@ -75,8 +75,11 @@ const customSchema = new mongoose.Schema({
   ownerPhone: { type: String, required: true },
   uploadId: String, sample: String, occasion: String, weight: String, flavour: String,
   productId: String, flavourTier: { type: String, enum: ["basic", "standard", "premium"] },
-  weightKg: Number, estimatedCakePrice: Number, // Paise; not a confirmed customer quote.
-  budget: Number, notes: String, requiredDate: String, customPincode: String,
+  weightKg: Number, estimatedCakePrice: Number, // Paise, admin-only reference; not shown to customers.
+  quotedPrice: { type: Number, min: 1, max: 100_000_000 }, // Final amount in paise, entered by admin.
+  quoteNotes: String, quotedAt: Date,
+  quotedBy: { type: mongoose.Schema.Types.ObjectId, ref: "AdminUser" },
+  notes: String, requiredDate: String, customPincode: String,
   customPhone: String, status: { type: String, default: "requested" },
   branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", index: true }
 }, options);
