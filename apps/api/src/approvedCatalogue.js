@@ -3,8 +3,28 @@ import { Product, CatalogueRelease } from "./models.js";
 
 export const launchReleaseKey = "approved-32-halfkg-prices-2026-10-23-v1";
 
+const promotionCopyReleaseKey = "approved-32-discount-from-1kg-2026-10-25-v1";
+
+function cakeDescription(cake, offerThreshold) {
+  return "Cake Galaxy " + cake.name + ". Half kilogram price: ₹" + cake.halfKg + ". Larger cakes are priced by weight, with 10% off cake prices " + offerThreshold + ". Images may be illustrative until product-specific photos are uploaded.";
+}
+
+// Only repair the original generated copy. Preserve any descriptions edited in Admin.
+async function refreshLegacyOfferCopy() {
+  if (await CatalogueRelease.exists({ key: promotionCopyReleaseKey })) return;
+  const writes = approvedCakePrices.map(cake => ({ updateOne: {
+    filter: { id: cake.id, description: cakeDescription(cake, "above 1 kg") },
+    update: { $set: { description: cakeDescription(cake, "at 1 kg and above") } }
+  } }));
+  await Product.bulkWrite(writes, { ordered: true });
+  await CatalogueRelease.updateOne({ key: promotionCopyReleaseKey }, { $setOnInsert: { key: promotionCopyReleaseKey, appliedAt: new Date() } }, { upsert: true });
+}
+
 export async function applyApprovedLaunchCatalogue() {
-  if (await CatalogueRelease.exists({ key: launchReleaseKey })) return { alreadyApplied: true };
+  if (await CatalogueRelease.exists({ key: launchReleaseKey })) {
+    await refreshLegacyOfferCopy();
+    return { alreadyApplied: true };
+  }
   const ids = approvedCakePrices.map(c => c.id);
   if (new Set(ids).size !== 32) throw new Error("Approved catalogue IDs are not unique.");
 
@@ -21,7 +41,7 @@ export async function applyApprovedLaunchCatalogue() {
           active: true, deletedAt: null, eggless: false,
           menuCategory: cake.category, category: [cake.category, "Birthday"],
           flavour: cake.name.replace(/ Cake$| Cheesecake$/i, ""),
-          description: "Cake Galaxy " + cake.name + ". Half kilogram price: ₹" + cake.halfKg + ". Larger cakes are priced by weight, with 10% off cake prices above 1 kg. Images may be illustrative until product-specific photos are uploaded.",
+          description: cakeDescription(cake, "at 1 kg and above"),
           menuImported: true
         },
         $setOnInsert: {
