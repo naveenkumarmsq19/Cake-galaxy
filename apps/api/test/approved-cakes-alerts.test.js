@@ -5,7 +5,8 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { approvedCakePrices, approvedWeightsKg, discountAmount, catalogueBasePrice, unitPrice } from "@cake-galaxy/catalog";
 import { priceItem } from "../src/validation.js";
-import { AdminSession, AdminUser, Order } from "../src/models.js";
+import { AdminSession, AdminUser, Order, Product, CatalogueRelease } from "../src/models.js";
+import { applyApprovedLaunchCatalogue, launchReleaseKey } from "../src/approvedCatalogue.js";
 
 test("exactly 32 approved cakes have the requested unique IDs and rupee half-kg prices", () => {
   assert.equal(approvedCakePrices.length, 32);
@@ -40,6 +41,29 @@ test("0.5kg stays full price; 1kg and all higher weights take 10% cake-only disc
     }
     const quote = priceItem({ ...i(1.5), flavour:p.name, quantity:1 },product);
     assert.equal(quote.unitPrice,Math.round(p.halfKg*300)-Math.round(p.halfKg*300*0.1));
+  }
+});
+
+test("legacy 1 kg offer copy updates only previously seeded product descriptions", async () => {
+  const original = { exists: CatalogueRelease.exists, updateOne: CatalogueRelease.updateOne, bulkWrite: Product.bulkWrite };
+  const writes = [];
+  let migrationKey;
+  CatalogueRelease.exists = async ({ key }) => key === launchReleaseKey;
+  CatalogueRelease.updateOne = async ({ key }) => { migrationKey = key; };
+  Product.bulkWrite = async (requests) => { writes.push(...requests); };
+  try {
+    assert.deepEqual(await applyApprovedLaunchCatalogue(), { alreadyApplied: true });
+    assert.equal(writes.length, approvedCakePrices.length);
+    for (const write of writes) {
+      assert.match(write.updateOne.filter.description, /above 1 kg/);
+      assert.match(write.updateOne.update.$set.description, /at 1 kg and above/);
+      assert.equal(write.updateOne.upsert, undefined);
+    }
+    assert.match(migrationKey, /discount-from-1kg/);
+  } finally {
+    CatalogueRelease.exists = original.exists;
+    CatalogueRelease.updateOne = original.updateOne;
+    Product.bulkWrite = original.bulkWrite;
   }
 });
 
