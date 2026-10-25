@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
-import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Session } from "../src/models.js";
+import { AdminSession, AdminUser, Branch, CustomRequest, Order, Product, ServiceArea, Session, Upload } from "../src/models.js";
 import { hashPassword } from "../src/admin.js";
 import { bootstrapSuperAdmin, ensureBaseServiceAreas, resetSuperAdminPassword } from "../src/bootstrap.js";
 
@@ -160,26 +160,42 @@ test("delivery is unavailable without an active assigned branch", async () => {
   } finally { ServiceArea.findOne = originalArea; Branch.findOne = originalBranch; }
 });
 
-test("custom cake request saves the branch selected from the delivery pincode", async () => {
+test("custom cake request saves the selected flavour, owned design image and branch from delivery pincode", async () => {
   const branchId = new mongoose.Types.ObjectId();
   const token = "c".repeat(64);
   const csrf = "d".repeat(48);
-  const originals = { session: Session.findOne, area: ServiceArea.findOne, branch: Branch.findOne, create: CustomRequest.create };
+  const originals = {
+    session: Session.findOne, area: ServiceArea.findOne, branch: Branch.findOne,
+    product: Product.findOne, upload: Upload.findOne, create: CustomRequest.create
+  };
   let saved;
   Session.findOne = () => ({ lean: async () => ({ phone: "9876543210", csrfToken: csrf }) });
   ServiceArea.findOne = () => ({ lean: async () => ({ pincode: "560073", deliveryFee: 4900, branchId }) });
   Branch.findOne = () => ({ lean: async () => ({ _id: branchId, active: true }) });
+  Product.findOne = async () => ({ id: "menu-black-forest", name: "Black Forest Cake", unit: "kg", active: true, price: 39900, weights: [0.5, 1, 1.5], variantPrices: {} });
+  Upload.findOne = async () => ({ id: "ref-image" });
   CustomRequest.create = async (value) => { saved = value; return value; };
   try {
     await withServer(async (base) => {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      const response = await fetch(base + "/api/custom-requests", { method: "POST", headers: { Cookie: "cg_session=" + token, "X-CSRF-Token": csrf, "Content-Type": "application/json" }, body: JSON.stringify({ customPincode: "560073", customPhone: "9876543210", sample: "Floral", occasion: "Birthday", weight: "1 kg", flavour: "Vanilla", requiredDate: today }) });
+      const response = await fetch(base + "/api/custom-requests", {
+        method: "POST",
+        headers: { Cookie: "cg_session=" + token, "X-CSRF-Token": csrf, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customPincode: "560073", customPhone: "9876543210", uploadId: "ref-image",
+          productId: "menu-black-forest", flavourTier: "basic", weightKg: 1, occasion: "Birthday", requiredDate: today
+        })
+      });
       assert.equal(response.status, 201);
       assert.equal(String(saved.branchId), String(branchId));
+      assert.equal(saved.flavour, "Black Forest Cake");
+      assert.equal(saved.estimatedCakePrice, 71820);
+      assert.equal(saved.uploadId, "ref-image");
     });
   } finally {
     Session.findOne = originals.session; ServiceArea.findOne = originals.area;
-    Branch.findOne = originals.branch; CustomRequest.create = originals.create;
+    Branch.findOne = originals.branch; Product.findOne = originals.product;
+    Upload.findOne = originals.upload; CustomRequest.create = originals.create;
   }
 });
 
