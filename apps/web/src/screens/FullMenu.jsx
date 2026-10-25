@@ -33,7 +33,7 @@ export default function FullMenu() {
       <span className="overline">CAKE GALAXY • CURRENTLY AVAILABLE CAKES</span>
       <h1>Our Menu &amp; Prices</h1>
       <p>Explore the cakes currently enabled for ordering, grouped by flavour category.</p>
-      <p className="menu-size-note">Half-kg prices are set by Cake Galaxy. A 1 kg cake costs twice the half-kg price. All cakes weighing more than 1 kg receive 10% off the cake price. Add-ons and delivery are shown separately at checkout.</p>
+      <p className="menu-size-note">Half-kg prices are set by Cake Galaxy. A 1 kg cake has a base price of twice the half-kg price. Cakes weighing 1 kg or more receive 10% off the cake base price. Add-ons and delivery are shown separately at checkout.</p>
     </header>
     <div className="menu-toolbar">
       <label htmlFor="menu-search">Search cakes</label>
@@ -44,7 +44,7 @@ export default function FullMenu() {
     {sections.length ? <div className="menu-sections">{sections.map(section=><section className="menu-section" key={section.id} id={section.id}>
       <h2>{section.title}</h2>
       <div className="menu-table-scroll"><table className="menu-table">
-        <thead><tr><th scope="col">Cake</th><th scope="col">½ kg</th><th scope="col">1 kg</th><th scope="col">1½ kg (10% off)</th></tr></thead>
+        <thead><tr><th scope="col">Cake</th><th scope="col">½ kg</th><th scope="col">1 kg (10% off)</th><th scope="col">1½ kg (10% off)</th></tr></thead>
         <tbody>{section.items.map(product=><tr key={product.id}>
           <th scope="row"><Link href={"/product?id="+encodeURIComponent(product.id)}>{product.name} ↗</Link></th>
           <td>{quotedPrice(product,0.5)}</td><td>{quotedPrice(product,1)}</td><td>{quotedPrice(product,1.5)}</td>
