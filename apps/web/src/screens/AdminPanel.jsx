@@ -68,6 +68,67 @@ function CancellationReview({ order, busy, execute, request, superAdmin }) {
   </div>;
 }
 
+function CustomQuoteForm({ item, busy, execute, request }) {
+  const [price, setPrice] = useState(
+    Number.isSafeInteger(item.quotedPrice) ? (item.quotedPrice / 100).toFixed(2) : ""
+  );
+  const [notes, setNotes] = useState(item.quoteNotes || "");
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const savedQuote = Number.isSafeInteger(item.quotedPrice) && item.quotedPrice > 0;
+  function submit(event) {
+    event.preventDefault();
+    const clean = price.trim();
+    if (!/^[1-9]\d{0,6}(?:\.\d{1,2})?$/.test(clean)) {
+      setCopyFeedback("Enter a valid rupee amount, up to two decimal places.");
+      return;
+    }
+    const [rupeePart, paisePart = ""] = clean.split(".");
+    const quotedPrice = Number(rupeePart) * 100 + Number((paisePart + "00").slice(0, 2));
+    if (!Number.isSafeInteger(quotedPrice) || quotedPrice < 100 || quotedPrice > 100_000_000) {
+      setCopyFeedback("Quote must be between ₹1 and ₹10,00,000.");
+      return;
+    }
+    setCopyFeedback("");
+    execute(
+      () => request("custom-requests/" + encodeURIComponent(item.reference), "PATCH", {
+        status: "quoted", quotedPrice, quoteNotes: notes.trim()
+      }),
+      "Final quotation saved. Contact the customer to share it."
+    );
+  }
+  const quoteMessage = savedQuote
+    ? "Cake Galaxy: Your custom cake request " + item.reference + " (" + item.flavour + ", " + item.weight +
+      ") has been reviewed. The quoted price is " + rupees(item.quotedPrice) + "." +
+      (item.quoteNotes ? " " + item.quoteNotes : "") + " Please contact us to confirm before payment."
+    : "";
+  return <div className="admin-quote-panel">
+    <h3>Set final Design Cake quote</h3>
+    {savedQuote && <p><strong>Current quotation:</strong> {rupees(item.quotedPrice)}
+      {item.quotedAt && <> · {new Date(item.quotedAt).toLocaleString("en-IN")}</>}
+      {item.quoteNotes && <span className="admin-quote-note"> · {item.quoteNotes}</span>}
+    </p>}
+    <form onSubmit={submit} className="admin-quote-form">
+      <label>Final price (₹)
+        <input type="number" inputMode="decimal" min="1" max="1000000" step="0.01"
+          value={price} onChange={(event) => setPrice(event.target.value)}
+          placeholder="Enter final cake quote" required/>
+      </label>
+      <label>Quote details (optional)
+        <textarea rows={2} maxLength={500} value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          placeholder="Decoration, delivery or other inclusions and conditions"/>
+      </label>
+      <button className="admin-primary" disabled={busy}>{savedQuote ? "Update final quote" : "Save final quote"} · Mark Quoted</button>
+    </form>
+    {copyFeedback && <p role="status">{copyFeedback}</p>}
+    {savedQuote && <button type="button" className="admin-ghost" onClick={async () => {
+      try { await navigator.clipboard.writeText(quoteMessage); setCopyFeedback("Quote message copied. Paste it to the customer yourself."); }
+      catch { setCopyFeedback("Copy unavailable. Please share the displayed quote manually."); }
+    }}>Copy customer quote message</button>}
+    <p className="admin-muted">Saving a quote does not send WhatsApp/SMS or create a payable order. Share it with the customer manually.</p>
+  </div>;
+}
+
 export default function AdminPanel() {
   const [user, setUser] = useState(null);
   const csrf = useRef("");
@@ -201,7 +262,31 @@ export default function AdminPanel() {
           execute(() => request("orders/" + encodeURIComponent(order.reference) + "/status", "PATCH", { status: "delivered", codCollected: true }), "COD cash collected; order delivered");
       }}>Confirm cash collected & delivered</button>
     : <button disabled={busy} className="admin-primary" onClick={() => execute(() => request("orders/" + encodeURIComponent(order.reference) + "/status", "PATCH", { status: steps[order.status] }), "Order updated")}>{order.status === "confirmed" ? "Accept Order ✓" : "Mark " + steps[order.status].replaceAll("_", " ")}</button>)}{user.role === "super_admin" && !["delivered", "cancelled"].includes(order.status) && !["requested", "approved"].includes(order.cancellation?.status) && <><select aria-label="Destination branch" value={targets[order.reference] || ""} onChange={(e) => setTargets({ ...targets, [order.reference]: e.target.value })}><option value="">Move to branch…</option>{data.branches.filter((b) => b.active && String(b._id) !== order.branchId).map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}</select><button disabled={busy || !targets[order.reference]} className="admin-ghost" onClick={() => { const reason = window.prompt("Reason for reassignment (recorded in history)"); if (reason?.trim()) execute(() => request("orders/" + encodeURIComponent(order.reference) + "/reassign", "POST", { branchId: targets[order.reference], reason }), "Order reassigned"); }}>Reassign</button></>}</div></article>)}{!data.orders.length && <div className="admin-card">No orders yet.</div>}</div></>}
-      {tab === "Custom requests" && <div className="admin-order-grid">{data.requests.map((item) => <article className="admin-card" key={item.reference}><div className="admin-card-head"><div><small>REQUEST #{item.reference}</small><h2>{item.occasion}</h2></div><span className="admin-pill">{item.status}</span></div><p>{branchName(item.branchId)} · {item.customPincode} · {item.customPhone}</p><p>{item.flavour} · {item.weight} · {item.requiredDate}</p>{item.flavourTier && <p><strong>Flavour tier:</strong> {item.flavourTier.charAt(0).toUpperCase() + item.flavourTier.slice(1)}</p>}{Number.isSafeInteger(item.estimatedCakePrice) && <p><strong>Estimated cake base:</strong> {rupees(item.estimatedCakePrice)} <small>(final design quote pending)</small></p>}{item.budget !== null && item.budget !== undefined && <p><strong>Customer budget:</strong> ₹{Number(item.budget).toLocaleString("en-IN")}</p>}{item.notes && <p>{item.notes}</p>}{item.uploadId && <a className="admin-image-link" href={API_ROOT + "/admin/uploads/" + encodeURIComponent(item.uploadId)} target="_blank" rel="noreferrer">View reference image ↗</a>}{item.sample && <p>Sample: {item.sample}</p>}<div className="admin-actions">{["reviewing", "quoted", "closed"].map((status) => <button key={status} type="button" disabled={busy || status === item.status} className="admin-ghost" onClick={() => execute(() => request("custom-requests/" + encodeURIComponent(item.reference), "PATCH", { status }), "Request updated")}>{status}</button>)}</div></article>)}{!data.requests.length && <div className="admin-card">No custom requests yet.</div>}</div>}
+      {tab === "Custom requests" && <div className="admin-order-grid">
+        {data.requests.map((item) => <article className="admin-card" key={item.reference}>
+          <div className="admin-card-head">
+            <div><small>REQUEST #{item.reference}</small><h2>{item.occasion}</h2></div>
+            <span className="admin-pill">{item.status}</span>
+          </div>
+          <p>{branchName(item.branchId)} · {item.customPincode} · {item.customPhone}</p>
+          <p>{item.flavour} · {item.weight} · {item.requiredDate}</p>
+          {item.flavourTier && <p><strong>Flavour tier:</strong> {item.flavourTier.charAt(0).toUpperCase() + item.flavourTier.slice(1)}</p>}
+          {Number.isSafeInteger(item.estimatedCakePrice) && <p><strong>Internal cake base estimate:</strong> {rupees(item.estimatedCakePrice)} <small>(not the final design quote)</small></p>}
+          {item.notes && <p><strong>Design notes:</strong> {item.notes}</p>}
+          {item.uploadId && <a className="admin-image-link" href={API_ROOT + "/admin/uploads/" + encodeURIComponent(item.uploadId)} target="_blank" rel="noreferrer">View reference image ↗</a>}
+          {item.sample && <p>Sample: {item.sample}</p>}
+          <CustomQuoteForm item={item} busy={busy} execute={execute} request={request}/>
+          <div className="admin-actions">
+            {["reviewing", "closed"].map((status) =>
+              <button key={status} type="button" disabled={busy || status === item.status}
+                className="admin-ghost"
+                onClick={() => execute(() => request("custom-requests/" + encodeURIComponent(item.reference), "PATCH", { status }), "Request updated")}>
+                {status === "reviewing" ? "Mark reviewing" : "Close request"}
+              </button>)}
+          </div>
+        </article>)}
+        {!data.requests.length && <div className="admin-card">No custom requests yet.</div>}
+      </div>}
       {tab === "Branches" && <><p className="admin-intro">Branch details are private and are not shown on the customer website. Both confirmed locations below remain inactive until their service pincodes are reviewed.</p><div className="admin-order-grid">{data.branches.map((branch) => <article className="admin-card" key={branch._id}><div className="admin-card-head"><div><small>{branch.code}</small><h2>{branch.name}</h2></div><span className={branch.active ? "admin-pill good" : "admin-pill"}>{branch.active ? "Active" : "Inactive"}</span></div><p>{branch.address}</p><p>Base PIN {branch.basePincode} · {branch.radiusKm} km planned radius</p><small className="admin-muted">Branch ID: {branch._id}</small>{user.role === "super_admin" && <div className="admin-actions"><button className="admin-ghost" disabled={busy} onClick={() => execute(() => request("branches/" + branch._id, "PATCH", { active: !branch.active }), "Branch updated")}>{branch.active ? "Pause branch" : "Activate branch"}</button><button className="admin-ghost" disabled={busy} onClick={() => { const address = window.prompt("Branch address", branch.address); if (address && address !== branch.address) execute(() => request("branches/" + branch._id, "PATCH", { address }), "Address updated"); }}>Edit address</button></div>}</article>)}</div>{user.role === "super_admin" && <form className="admin-card admin-form" onSubmit={(e) => { e.preventDefault(); execute(async () => { await request("branches", "POST", branchDraft); setBranchDraft({ code: "", name: "", address: "", basePincode: "" }); }, "Branch created inactive"); }}><h2>Add a branch</h2><p>Add the third branch after its address is confirmed.</p><div className="admin-fields"><label>Branch code<input required placeholder="BR03" value={branchDraft.code} onChange={(e) => setBranchDraft({ ...branchDraft, code: e.target.value })}/></label><label>Branch name<input required value={branchDraft.name} onChange={(e) => setBranchDraft({ ...branchDraft, name: e.target.value })}/></label><label>Base pincode<input required inputMode="numeric" maxLength={6} value={branchDraft.basePincode} onChange={(e) => setBranchDraft({ ...branchDraft, basePincode: e.target.value })}/></label><label className="admin-wide">Full address<input required value={branchDraft.address} onChange={(e) => setBranchDraft({ ...branchDraft, address: e.target.value })}/></label></div><button className="admin-primary" disabled={busy}>Create branch</button></form>}</>}
       {tab === "Coverage" && user.role === "super_admin" && <><div className="admin-note">Each PIN maps to one branch. 5 km distance cannot be guaranteed by a postal PIN alone; verify the real delivery area before activating it. Unmapped PINs are blocked at checkout.</div><form className="admin-card admin-form" onSubmit={(e) => { e.preventDefault(); execute(async () => { await request("service-areas/" + coverageDraft.pincode, "PUT", { branchId: coverageDraft.branchId, deliveryFee: Math.round(Number(coverageDraft.fee) * 100), active: true }); setCoverageDraft({ ...coverageDraft, pincode: "" }); }, "Pincode mapped"); }}><h2>Map a delivery pincode</h2><div className="admin-fields"><label>6-digit pincode<input required inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} value={coverageDraft.pincode} onChange={(e) => setCoverageDraft({ ...coverageDraft, pincode: e.target.value })}/></label><label>Assigned branch<select required value={coverageDraft.branchId} onChange={(e) => setCoverageDraft({ ...coverageDraft, branchId: e.target.value })}><option value="">Select branch</option>{data.branches.map((b) => <option key={b._id} value={b._id}>{b.name} ({b.basePincode})</option>)}</select></label><label>Delivery fee (₹)<input required type="number" min="0" step="0.01" value={coverageDraft.fee} onChange={(e) => setCoverageDraft({ ...coverageDraft, fee: e.target.value })}/></label></div><button className="admin-primary" disabled={busy}>Save mapping</button></form><div className="admin-card"><h2>Service area mappings</h2><div className="admin-list">{data.areas.map((area) => <div key={area.pincode} className="admin-row"><strong>{area.pincode}</strong><span>{branchName(area.branchId)}</span><span>{rupees(area.deliveryFee)}</span><span className={area.active ? "admin-pill good" : "admin-pill"}>{area.active ? "Active" : "Paused"}</span><button className="admin-text" disabled={busy} onClick={() => execute(() => request(area.active ? "service-areas/" + area.pincode : "service-areas/" + area.pincode, area.active ? "DELETE" : "PUT", area.active ? undefined : { branchId: area.branchId, deliveryFee: area.deliveryFee, active: true }), "Mapping updated")}>{area.active ? "Pause" : "Restore"}</button></div>)}{!data.areas.length && <p className="admin-muted">No pincodes mapped. Customers cannot check out until a branch and service pincode are active.</p>}</div></div></>}
       {tab === "Team" && user.role === "super_admin" && <><form className="admin-card admin-form" onSubmit={(e) => { e.preventDefault(); execute(async () => { await request("managers", "POST", managerDraft); setManagerDraft({ name: "", email: "", password: "", branchId: "" }); }, "Branch Manager created"); }}><h2>Add Branch Manager</h2><div className="admin-fields"><label>Name<input required value={managerDraft.name} onChange={(e) => setManagerDraft({ ...managerDraft, name: e.target.value })}/></label><label>Email<input required type="email" value={managerDraft.email} onChange={(e) => setManagerDraft({ ...managerDraft, email: e.target.value })}/></label><label>Branch<select required value={managerDraft.branchId} onChange={(e) => setManagerDraft({ ...managerDraft, branchId: e.target.value })}><option value="">Select branch</option>{data.branches.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}</select></label><label>Temporary password (12+ chars)<input required minLength={12} type="password" value={managerDraft.password} onChange={(e) => setManagerDraft({ ...managerDraft, password: e.target.value })}/></label></div><button className="admin-primary" disabled={busy}>Create manager</button></form><div className="admin-card"><h2>Team access</h2><div className="admin-list">{data.users.map((person) => <div className="admin-row" key={person.id}><strong>{person.name}</strong><span>{person.email}</span><span>{person.role === "super_admin" ? "Super Admin" : branchName(person.branchId)}</span><span>{person.active ? "Active" : "Disabled"}</span>{person.role === "branch_manager" && <><select aria-label={"Change branch for " + person.name} value={String(person.branchId || "")} disabled={busy} onChange={(e) => execute(() => request("managers/" + person.id, "PATCH", { branchId: e.target.value }), "Manager branch changed")}>{data.branches.map((b) => <option key={b._id} value={b._id}>{b.name}</option>)}</select><button className="admin-text" disabled={busy} onClick={() => execute(() => request("managers/" + person.id, "PATCH", { active: !person.active }), "Access updated")}>{person.active ? "Disable" : "Enable"}</button><input className="admin-reset" type="password" placeholder="New password" aria-label={"New password for " + person.name} value={resetPasswords[person.id] || ""} onChange={(e) => setResetPasswords({ ...resetPasswords, [person.id]: e.target.value })}/><button className="admin-text" disabled={busy || (resetPasswords[person.id] || "").length < 12} onClick={() => execute(async () => { await request("managers/" + person.id, "PATCH", { password: resetPasswords[person.id] }); setResetPasswords((current) => ({ ...current, [person.id]: "" })); }, "Password reset; existing sessions signed out")}>Reset</button></>}</div>)}</div></div></>}
