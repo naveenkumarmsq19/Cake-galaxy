@@ -74,6 +74,24 @@ export function discountAmount(item, product = getProduct(item.productId)) {
   return Math.round(base * 0.10);
 }
 
+// Design Cake tiers use the listed starting-size base price (usually 0.5 kg),
+// not a changing checkout total. This keeps flavours in one category as weight changes.
+export function designCakeStartingPrice(product) {
+  if (product?.unit !== "kg" || !Array.isArray(product.weights)) return null;
+  const sizes = product.weights.filter((size) => Number.isFinite(size) && size > 0);
+  if (!sizes.length) return null;
+  const size = Math.min(...sizes);
+  const price = catalogueBasePrice({ size }, product);
+  return Number.isSafeInteger(price) && price > 0 ? { size, price } : null;
+}
+
+export function designCakeTier(product) {
+  const starting = designCakeStartingPrice(product);
+  if (!starting) return null;
+  if (starting.price < 60000) return "basic";
+  return starting.price <= 100000 ? "standard" : "premium";
+}
+
 export function unitPrice(item, product = getProduct(item.productId)) {
   if (!product || !product.weights.includes(Number(item.size))) return 0;
   return regularUnitPrice(item, product) - discountAmount(item, product);

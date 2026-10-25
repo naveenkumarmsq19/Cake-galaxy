@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { addons, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
+import { addons, designCakeStartingPrice, designCakeTier, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
@@ -108,28 +108,168 @@ export function Product() {
   </div>;
 }
 
+const designCakeTiers = [
+  { id: "basic", name: "Basic", range: "Below ₹600" },
+  { id: "standard", name: "Standard", range: "₹600 – ₹1,000" },
+  { id: "premium", name: "Premium", range: "Above ₹1,000" }
+];
+
 export function Custom() {
-  const { session, api, pincode } = useStore();
-  const [sample, setSample] = useState("");
+  const { session, api, pincode, catalog, catalogLoaded } = useStore();
+  const [tier, setTier] = useState("basic");
+  const [productId, setProductId] = useState("");
+  const [weightKg, setWeightKg] = useState(1);
   const [file, setFile] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [customPhone, setCustomPhone] = useState("");
-  useEffect(() => { if (session.authenticated && !customPhone) setCustomPhone(session.phone); }, [session.phone, session.authenticated]);
+
+  useEffect(() => {
+    if (session.authenticated && !customPhone) setCustomPhone(session.phone);
+  }, [session.phone, session.authenticated]);
+
+  const flavours = catalog
+    .filter((product) => designCakeTier(product) && product.weights?.some((size) => size >= 1))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const available = flavours.filter((product) => designCakeTier(product) === tier);
+  const selected = available.find((product) => product.id === productId);
+  const weights = selected?.weights?.filter((size) => size >= 1).sort((a, b) => a - b) || [];
+  const item = selected ? { productId: selected.id, size: weightKg, eggless: false, addons: [] } : null;
+  const estimatedCakePrice = selected && weights.includes(weightKg) ? unitPrice(item, selected) : null;
+  const originalCakePrice = selected && weights.includes(weightKg) ? regularUnitPrice(item, selected) : null;
+  const saving = selected && weights.includes(weightKg) ? discountAmount(item, selected) : 0;
+
+  function chooseTier(next) {
+    setTier(next);
+    setProductId("");
+    setWeightKg(1);
+    setFile(null);
+    setFeedback("");
+  }
+  function chooseFlavour(id) {
+    const product = flavours.find((cake) => cake.id === id);
+    const firstWeight = product?.weights?.filter((size) => size >= 1).sort((a, b) => a - b)[0];
+    setProductId(id);
+    setWeightKg(firstWeight || 1);
+    setFile(null);
+    setFeedback("");
+  }
+
   async function submit(event) {
-    event.preventDefault(); setFeedback("");
-    if (!session.authenticated || session.phone !== customPhone) { setFeedback("Verify your mobile number before sending your design request."); return; }
+    event.preventDefault();
+    setFeedback("");
+    if (!selected || !weights.includes(weightKg)) {
+      setFeedback("Choose a flavour and available cake weight first.");
+      return;
+    }
+    if (!file) {
+      setFeedback("Upload the sample design image you want us to follow.");
+      return;
+    }
+    if (!session.authenticated || session.phone !== customPhone) {
+      setFeedback("Verify your mobile number before sending your design request.");
+      return;
+    }
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
     setBusy(true);
     try {
-      let uploadId;
-      if (file) { const formData = new FormData(); formData.append("reference", file); const uploaded = await api("/uploads", { method: "POST", formData }); uploadId = uploaded.id; }
-      const result = await api("/custom-requests", { method: "POST", body: { ...data, customPhone, sample, uploadId } });
-      setFeedback("Request " + result.reference + " received. We'll contact you after checking the design and availability.");
-      form.reset(); setFile(null);
-    } catch (error) { setFeedback(error.message); }
-    finally { setBusy(false); }
+      const formData = new FormData();
+      formData.append("reference", file);
+      const uploaded = await api("/uploads", { method: "POST", formData });
+      const result = await api("/custom-requests", {
+        method: "POST",
+        body: { ...data, productId: selected.id, weightKg, customPhone, uploadId: uploaded.id }
+      });
+      setFeedback("Request " + result.reference + " received. We'll confirm the design and final price before payment.");
+      form.reset();
+      setFile(null);
+      setProductId("");
+      setWeightKg(1);
+      setTier("basic");
+    } catch (error) {
+      setFeedback(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
-  return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Custom cakes</div><div className="page-heading"><div><h1>A cake that's entirely you</h1><p>Share a reference or start with a sample style.</p></div></div><div className="custom-layout"><div className="custom-images"><img src={images.floral} alt="Floral cake design"/>{[["Pastel flowers", images.floral], ["Berry tiers", images.custom], ["Rainbow layers", images.rainbow]].map(([name, src]) => <button type="button" className={"sample-button" + (sample === name ? " selected" : "")} onClick={() => setSample(name)} key={name}><img src={src} alt=""/>{name}</button>)}</div><form className="panel" onSubmit={submit}><h2>Tell us what you have in mind</h2><label className="upload-zone" htmlFor="design-file">Upload a design reference<input id="design-file" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }}/><small>A photo or sketch. JPG / PNG up to 10 MB.</small></label>{sample && <p className="subtle">Sample style: {sample}</p>}<div className="field-row"><div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="weight">Weight</label><select id="weight" name="weight">{["1 kg", "1.5 kg", "2 kg", "3 kg or more"].map((value) => <option key={value}>{value}</option>)}</select></div></div><div className="field-row"><div className="field"><label htmlFor="flavour">Flavour</label><select id="flavour" name="flavour">{["Chocolate", "Vanilla", "Butterscotch", "Red velvet"].map((value) => <option key={value}>{value}</option>)}</select></div><div className="field"><label htmlFor="budget">Budget (optional)</label><input id="budget" name="budget" type="number" min="0" placeholder="₹"/></div></div><div className="field"><label htmlFor="notes">Design notes</label><textarea id="notes" name="notes" maxLength={2000} placeholder="Colours, theme, name and age"/></div><div className="field-row"><div className="field"><label htmlFor="requiredDate">Required date</label><input id="requiredDate" name="requiredDate" type="date" required/></div><div className="field"><label htmlFor="customPincode">Delivery pincode</label><input id="customPincode" name="customPincode" defaultValue={pincode} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/></div></div><div className="field"><h3>Your contact number</h3>{session.authenticated && session.phone === customPhone ? <p className="verified-badge">+91 {session.phone} · Verified</p> : <PhoneVerification phone={customPhone} onPhoneChange={setCustomPhone}/>}</div><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={busy}>Request a design & quote</button><p className="subtle">We confirm the design and final price before payment.</p></form></div></div>;
+
+  return <div className="wrap page">
+    <div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Design cake</div>
+    <div className="page-heading"><div><h1>Design your own cake</h1><p>Choose your flavour and cake weight, then upload the design you love.</p></div></div>
+    <div className="custom-layout">
+      <div className="custom-images">
+        <img src={images.floral} alt="Floral cake design inspiration"/>
+        <p className="subtle">Your reference image will guide our team. Custom decorations are reviewed before the final quote.</p>
+        {[["Floral inspiration", images.floral], ["Berry inspiration", images.custom], ["Rainbow inspiration", images.rainbow]].map(([name, src]) => <div className="sample-button" key={name}><img src={src} alt=""/>{name}</div>)}
+      </div>
+      <form className="panel" onSubmit={submit}>
+        <h2>1. Select your cake flavour</h2>
+        <p className="subtle">Flavour categories use the listed starting-size cake price (usually ½ kg), before discounts. Your selected kg determines the actual cake estimate.</p>
+        <div className="option-row" role="group" aria-label="Flavour price category">
+          {designCakeTiers.map((option) => <label className="choice" key={option.id}>
+            <input type="radio" name="flavourTier" value={option.id} checked={tier === option.id} onChange={() => chooseTier(option.id)}/>
+            <span>{option.name} · {option.range} ({flavours.filter((cake) => designCakeTier(cake) === option.id).length})</span>
+          </label>)}
+        </div>
+        <div className="field">
+          <label htmlFor="design-flavour">Flavour</label>
+          <select id="design-flavour" value={productId} onChange={(event) => chooseFlavour(event.target.value)} disabled={!available.length} required>
+            <option value="">Select a {tier} flavour</option>
+            {available.map((product) => {
+              const starting = designCakeStartingPrice(product);
+              return <option value={product.id} key={product.id}>{product.name} · {money(starting.price)} / {starting.size} kg</option>;
+            })}
+          </select>
+          {catalogLoaded && !available.length && <p className="subtle">No {tier} flavours in the currently approved price list. Select another category or add approved flavours in Admin.</p>}
+          {!catalogLoaded && <p className="subtle">Loading approved cake flavours...</p>}
+        </div>
+        {selected && <>
+          <div className="field">
+            <label htmlFor="design-weight">Cake weight</label>
+            <select id="design-weight" value={weightKg} onChange={(event) => setWeightKg(Number(event.target.value))} required>
+              {weights.map((size) => <option key={size} value={size}>{size} kg</option>)}
+            </select>
+          </div>
+          {estimatedCakePrice !== null && <div className="panel">
+            <h3>Estimated cake base price: {money(estimatedCakePrice)}</h3>
+            {saving > 0 && <p className="subtle">10% cake discount: −{money(saving)} (before discount: {money(originalCakePrice)})</p>}
+            <p className="subtle">Based on {selected.name} · {weightKg} kg. Custom decoration, delivery and applicable taxes are not included. The bakery confirms your final design price before payment.</p>
+          </div>}
+          <h2>2. Upload your sample design</h2>
+          <label className="upload-zone" htmlFor="design-file">Upload your reference cake image
+            <input key={selected.id} id="design-file" type="file" accept="image/jpeg,image/png" required
+              onChange={(event) => {
+                const chosen = event.target.files?.[0];
+                if (chosen && chosen.size > 10 * 1024 * 1024) {
+                  event.target.value = "";
+                  setFile(null);
+                  setFeedback("Choose a photo smaller than 10 MB.");
+                } else {
+                  setFile(chosen || null);
+                  setFeedback("");
+                }
+              }}/>
+            <small>JPG / PNG up to 10 MB. {file ? "Selected: " + file.name : "Select the design photo you want."}</small>
+          </label>
+          <h2>3. Celebration and contact details</h2>
+          <div className="field-row">
+            <div className="field"><label htmlFor="occasion">Occasion</label><select id="occasion" name="occasion">{["Birthday", "Anniversary", "Wedding", "Baby shower", "Other"].map((value) => <option key={value}>{value}</option>)}</select></div>
+            <div className="field"><label htmlFor="budget">Budget (optional)</label><input id="budget" name="budget" type="number" min="0" placeholder="₹"/></div>
+          </div>
+          <div className="field"><label htmlFor="notes">Design notes</label><textarea id="notes" name="notes" maxLength={2000} placeholder="Colours, theme, name and age"/></div>
+          <div className="field-row">
+            <div className="field"><label htmlFor="requiredDate">Required date</label><input id="requiredDate" name="requiredDate" type="date" required/></div>
+            <div className="field"><label htmlFor="customPincode">Delivery pincode</label><input id="customPincode" name="customPincode" defaultValue={pincode} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/></div>
+          </div>
+          <div className="field"><h3>Your contact number</h3>
+            {session.authenticated && session.phone === customPhone ? <p className="verified-badge">+91 {session.phone} · Verified</p> : <PhoneVerification phone={customPhone} onPhoneChange={setCustomPhone}/>}
+          </div>
+          <button className="button full" disabled={busy}>{busy ? "Submitting…" : "Request a design & quote"}</button>
+          <p className="subtle">We confirm the design and final price before payment. Submitting this form does not place a paid order.</p>
+        </>}
+        <p className="form-message" role="status">{feedback}</p>
+      </form>
+    </div>
+  </div>;
 }

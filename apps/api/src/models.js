@@ -74,6 +74,8 @@ const customSchema = new mongoose.Schema({
   reference: { type: String, unique: true, required: true },
   ownerPhone: { type: String, required: true },
   uploadId: String, sample: String, occasion: String, weight: String, flavour: String,
+  productId: String, flavourTier: { type: String, enum: ["basic", "standard", "premium"] },
+  weightKg: Number, estimatedCakePrice: Number, // Paise; not a confirmed customer quote.
   budget: Number, notes: String, requiredDate: String, customPincode: String,
   customPhone: String, status: { type: String, default: "requested" },
   branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", index: true }

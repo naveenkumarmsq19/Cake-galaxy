@@ -8,7 +8,7 @@ import { pipeline } from "node:stream/promises";
 import mongoose from "mongoose";
 import multer from "multer";
 import sharp from "sharp";
-import { addons } from "@cake-galaxy/catalog";
+import { addons, designCakeTier, unitPrice } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, Category, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
 import { createProductGalleryRouter } from "./gallery.js";
@@ -234,13 +234,45 @@ export function createApp() {
     const assignment = await deliveryAssignment(pincode);
     if (!assignment) throw new HttpError(400, "We can't deliver to this pincode yet.");
     if (phoneNumber(body.customPhone) !== req.customer) throw new HttpError(400, "Verify the mobile number used for this request.");
-    if (body.uploadId && !await Upload.findOne({ id: body.uploadId, ownerPhone: req.customer })) throw new HttpError(400, "The reference image was not found.");
-    if (!body.uploadId && !body.sample) throw new HttpError(400, "Upload a design or choose a sample style.");
+
+    // Never trust the browser for flavour, tier or price. Read the active catalogue.
+    const productId = text(body.productId, 120);
+    const weightKg = body.weightKg;
+    const product = await Product.findOne({ id: productId, active: true, deletedAt: null });
+    if (!product || product.unit !== "kg" || typeof weightKg !== "number" ||
+        !Number.isFinite(weightKg) || weightKg < 1 || !product.weights?.includes(weightKg)) {
+      throw new HttpError(400, "Select an available cake flavour and weight.");
+    }
+    const flavourTier = designCakeTier(product);
+    if (!flavourTier || (body.flavourTier && body.flavourTier !== flavourTier)) {
+      throw new HttpError(400, "That cake's flavour category has changed. Choose it again.");
+    }
+    const estimatedCakePrice = unitPrice(
+      { productId, size: weightKg, eggless: false, addons: [] }, product
+    );
+    if (!Number.isSafeInteger(estimatedCakePrice) || estimatedCakePrice <= 0) {
+      throw new HttpError(400, "This cake price is currently unavailable.");
+    }
+    const uploadId = text(body.uploadId, 60);
+    if (!await Upload.findOne({ id: uploadId, ownerPhone: req.customer })) {
+      throw new HttpError(400, "Upload your design reference image first.");
+    }
     const reference = "CGC" + randomBytes(5).toString("hex").toUpperCase();
     const budget = body.budget ? Number(body.budget) : null;
-    if (budget !== null && (!Number.isSafeInteger(budget) || budget < 0 || budget > 1_000_000)) throw new HttpError(400, "Check the budget entered.");
-    await CustomRequest.create({ reference, ownerPhone: req.customer, uploadId: body.uploadId || null, sample: text(body.sample || "", 80, false), occasion: text(body.occasion, 60), weight: text(body.weight, 40), flavour: text(body.flavour, 60), budget, notes: text(body.notes || "", 2000, false), requiredDate: deliveryDate(body.requiredDate), customPincode: pincode, customPhone: req.customer, branchId: assignment.branch._id });
-    res.status(201).json({ reference });
+    if (budget !== null && (!Number.isSafeInteger(budget) || budget < 0 || budget > 1_000_000)) {
+      throw new HttpError(400, "Check the budget entered.");
+    }
+    await CustomRequest.create({
+      reference, ownerPhone: req.customer, uploadId, sample: "",
+      productId, flavourTier, weightKg, estimatedCakePrice,
+      occasion: text(body.occasion, 60), weight: weightKg + " kg",
+      flavour: text(product.name, 120), budget,
+      notes: text(body.notes || "", 2000, false),
+      requiredDate: deliveryDate(body.requiredDate),
+      customPincode: pincode, customPhone: req.customer,
+      branchId: assignment.branch._id
+    });
+    res.status(201).json({ reference, estimatedCakePrice });
   });
 
   app.get("/api/checkout/config", async (req, res) => {
