@@ -157,3 +157,15 @@
 .admin-product-entry .admin-product-photo-warning {
   display:block; margin-top:7px; color:#a44a25; font-size:12px; line-height:1.45;
 }
+
+
+/* Final custom-cake quotation is set by the branch admin, never by the customer. */
+.admin-quote-panel { margin-top:20px; padding:16px; background:#f6f8f4; border:1px solid #dce6da; border-radius:12px; }
+.admin-quote-panel h3 { font-size:16px; margin:0 0 9px; color:var(--forest); }
+.admin-quote-panel p { margin:8px 0; }
+.admin-quote-note { overflow-wrap:anywhere; }
+.admin-quote-form { display:grid; gap:12px; margin:12px 0; }
+.admin-quote-form label { display:grid; gap:6px; font-size:13px; font-weight:600; color:#3b5540; }
+.admin-quote-form input,.admin-quote-form textarea { border:1px solid #d4dfd5; background:white; border-radius:8px; padding:11px 12px; width:100%; color:var(--ink,#26382e); font:16px Arial,sans-serif; }
+.admin-quote-form textarea { resize:vertical; min-height:78px; }
+.admin-quote-panel .admin-ghost { margin-top:4px; }
