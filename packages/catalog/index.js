@@ -68,7 +68,7 @@ export function regularUnitPrice(item, product = getProduct(item.productId)) {
 
 export function discountAmount(item, product = getProduct(item.productId)) {
   const size = Number(item?.size);
-  if (!product || product.unit !== "kg" || size <= 1 || !product.weights.includes(size)) return 0;
+  if (!product || product.unit !== "kg" || size < 1 || !product.weights.includes(size)) return 0;
   const base = catalogueBasePrice(item, product);
   // Promotion applies to the cake itself, not optional toppings or eggless surcharge.
   return Math.round(base * 0.10);
