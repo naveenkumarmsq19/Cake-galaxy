@@ -258,21 +258,18 @@ export function createApp() {
       throw new HttpError(400, "Upload your design reference image first.");
     }
     const reference = "CGC" + randomBytes(5).toString("hex").toUpperCase();
-    const budget = body.budget ? Number(body.budget) : null;
-    if (budget !== null && (!Number.isSafeInteger(budget) || budget < 0 || budget > 1_000_000)) {
-      throw new HttpError(400, "Check the budget entered.");
-    }
     await CustomRequest.create({
       reference, ownerPhone: req.customer, uploadId, sample: "",
       productId, flavourTier, weightKg, estimatedCakePrice,
       occasion: text(body.occasion, 60), weight: weightKg + " kg",
-      flavour: text(product.name, 120), budget,
+      flavour: text(product.name, 120),
       notes: text(body.notes || "", 2000, false),
       requiredDate: deliveryDate(body.requiredDate),
       customPincode: pincode, customPhone: req.customer,
       branchId: assignment.branch._id
     });
-    res.status(201).json({ reference, estimatedCakePrice });
+    // Only the admin sees the internal base estimate; the customer receives a reference.
+    res.status(201).json({ reference });
   });
 
   app.get("/api/checkout/config", async (req, res) => {
