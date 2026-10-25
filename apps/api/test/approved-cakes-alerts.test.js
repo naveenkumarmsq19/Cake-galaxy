@@ -18,15 +18,20 @@ test("exactly 32 approved cakes have the requested unique IDs and rupee half-kg 
   assert.equal(approvedWeightsKg.at(-1), 20);
 });
 
-test("0.5kg exact list price, 1kg double, all higher weights take 10% cake-only discount", () => {
+test("0.5kg stays full price; 1kg and all higher weights take 10% cake-only discount", () => {
   for (const p of approvedCakePrices) {
     const product = { id:p.id, name:p.name, price:p.halfKg*100, active:true,
       weights:approvedWeightsKg, unit:"kg", variantPrices:{}, flavour:p.name,
       eggless:false };
     const i = s => ({productId:p.id,size:s,addons:[],eggless:false});
     assert.equal(unitPrice(i(0.5),product),p.halfKg*100);
-    assert.equal(unitPrice(i(1),product),p.halfKg*200);
-    assert.equal(discountAmount(i(1),product),0);
+    assert.equal(discountAmount(i(0.5),product),0);
+    assert.equal(catalogueBasePrice(i(1),product),p.halfKg*200);
+    assert.equal(unitPrice(i(1),product),p.halfKg*180);
+    assert.equal(discountAmount(i(1),product),Math.round(p.halfKg*200*0.1));
+    const oneKgQuote = priceItem({ ...i(1), flavour:p.name, quantity:1 }, product);
+    assert.equal(oneKgQuote.discountPercent,10);
+    assert.equal(oneKgQuote.unitPrice,p.halfKg*180);
     for (const size of [1.5,2,2.5,3,10,20]) {
       const full = Math.round(p.halfKg*100*size/0.5);
       assert.equal(catalogueBasePrice(i(size),product),full);
