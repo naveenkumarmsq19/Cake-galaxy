@@ -9,7 +9,8 @@ test("catalogue uses approved exact variant prices and proportional fallback", (
   assert.equal(catalogueBasePrice({ size: 0.5 }, product), 69000);
   assert.equal(catalogueBasePrice({ size: 1 }, product), 129900);
   assert.equal(catalogueBasePrice({ size: 1.5 }, product), Math.round(product.price * 1.5 / 0.5));
-  assert.equal(unitPrice({ size: 1, eggless: false, addons: [] }, product), 129900);
+  assert.equal(unitPrice({ size: 0.5, eggless: false, addons: [] }, product), 69000);
+  assert.equal(unitPrice({ size: 1, eggless: false, addons: [] }, product), 116910); // 10% off the configured ₹1,299 cake base.
 });
 
 test("same-day past delivery slot is unavailable; tomorrow remains valid", () => {
