@@ -11,9 +11,10 @@ test("checkout pricing uses catalogue prices, valid options and quantities", () 
   const chosen = { size: 1, quantity: 2, flavour: cake.flavour, eggless: true, addons: ["candles"], message: "Happy birthday" };
   const line = priceItem({ ...chosen, price: 1, lineTotal: 1 }, cake);
   assert.equal(line.originalUnitPrice, 163700);
-  assert.equal(line.discountPerUnit, 0);
-  assert.equal(line.unitPrice, 163700);
-  assert.equal(line.lineTotal, 327400);
+  assert.equal(line.discountPerUnit, 14980);
+  assert.equal(line.discountPercent, 10);
+  assert.equal(line.unitPrice, 148720);
+  assert.equal(line.lineTotal, 297440);
   assert.equal(line.unit, "kg");
   for (const tampered of [
     { ...chosen, quantity: -1 }, { ...chosen, size: 9 },
@@ -22,13 +23,14 @@ test("checkout pricing uses catalogue prices, valid options and quantities", () 
   ]) assert.throws(() => priceItem(tampered, cake), HttpError);
 });
 
-test("eggless surcharge scales by weight and cakes over 1 kg receive a 10% discount", () => {
+test("eggless surcharge scales by weight and cakes of 1 kg or more receive a 10% discount", () => {
   const cake = { ...products[0], active: true };
   assert.equal(egglessSurcharge({ size: 0.5, eggless: true }, cake), 5000);
   assert.equal(egglessSurcharge({ size: 1, eggless: true }, cake), 10000);
   assert.equal(egglessSurcharge({ size: 1.5, eggless: true }, cake), 15000);
   assert.equal(discountAmount({ size: 1.5, eggless: false }, cake), 22470);
-  assert.equal(discountAmount({ size: 1, eggless: false }, cake), 0);
+  assert.equal(discountAmount({ size: 0.5, eggless: false }, cake), 0);
+  assert.equal(discountAmount({ size: 1, eggless: false }, cake), 14980);
   assert.equal(discountAmount({ size: 6, eggless: false }, products.find((p) => p.id === "chocolate-mint-cupcakes")), 0);
 
   const line = priceItem({ size: 1.5, quantity: 1, flavour: cake.flavour, eggless: false, addons: [] }, cake);

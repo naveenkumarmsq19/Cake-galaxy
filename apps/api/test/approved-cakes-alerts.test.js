@@ -5,7 +5,8 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { approvedCakePrices, approvedWeightsKg, discountAmount, catalogueBasePrice, unitPrice } from "@cake-galaxy/catalog";
 import { priceItem } from "../src/validation.js";
-import { AdminSession, AdminUser, Order } from "../src/models.js";
+import { AdminSession, AdminUser, Order, Product, CatalogueRelease } from "../src/models.js";
+import { applyApprovedLaunchCatalogue, launchReleaseKey } from "../src/approvedCatalogue.js";
 
 test("exactly 32 approved cakes have the requested unique IDs and rupee half-kg prices", () => {
   assert.equal(approvedCakePrices.length, 32);
@@ -18,15 +19,20 @@ test("exactly 32 approved cakes have the requested unique IDs and rupee half-kg 
   assert.equal(approvedWeightsKg.at(-1), 20);
 });
 
-test("0.5kg exact list price, 1kg double, all higher weights take 10% cake-only discount", () => {
+test("0.5kg stays full price; 1kg and all higher weights take 10% cake-only discount", () => {
   for (const p of approvedCakePrices) {
     const product = { id:p.id, name:p.name, price:p.halfKg*100, active:true,
       weights:approvedWeightsKg, unit:"kg", variantPrices:{}, flavour:p.name,
       eggless:false };
     const i = s => ({productId:p.id,size:s,addons:[],eggless:false});
     assert.equal(unitPrice(i(0.5),product),p.halfKg*100);
-    assert.equal(unitPrice(i(1),product),p.halfKg*200);
-    assert.equal(discountAmount(i(1),product),0);
+    assert.equal(discountAmount(i(0.5),product),0);
+    assert.equal(catalogueBasePrice(i(1),product),p.halfKg*200);
+    assert.equal(unitPrice(i(1),product),p.halfKg*180);
+    assert.equal(discountAmount(i(1),product),Math.round(p.halfKg*200*0.1));
+    const oneKgQuote = priceItem({ ...i(1), flavour:p.name, quantity:1 }, product);
+    assert.equal(oneKgQuote.discountPercent,10);
+    assert.equal(oneKgQuote.unitPrice,p.halfKg*180);
     for (const size of [1.5,2,2.5,3,10,20]) {
       const full = Math.round(p.halfKg*100*size/0.5);
       assert.equal(catalogueBasePrice(i(size),product),full);
@@ -35,6 +41,29 @@ test("0.5kg exact list price, 1kg double, all higher weights take 10% cake-only 
     }
     const quote = priceItem({ ...i(1.5), flavour:p.name, quantity:1 },product);
     assert.equal(quote.unitPrice,Math.round(p.halfKg*300)-Math.round(p.halfKg*300*0.1));
+  }
+});
+
+test("legacy 1 kg offer copy updates only previously seeded product descriptions", async () => {
+  const original = { exists: CatalogueRelease.exists, updateOne: CatalogueRelease.updateOne, bulkWrite: Product.bulkWrite };
+  const writes = [];
+  let migrationKey;
+  CatalogueRelease.exists = async ({ key }) => key === launchReleaseKey;
+  CatalogueRelease.updateOne = async ({ key }) => { migrationKey = key; };
+  Product.bulkWrite = async (requests) => { writes.push(...requests); };
+  try {
+    assert.deepEqual(await applyApprovedLaunchCatalogue(), { alreadyApplied: true });
+    assert.equal(writes.length, approvedCakePrices.length);
+    for (const write of writes) {
+      assert.match(write.updateOne.filter.description, /above 1 kg/);
+      assert.match(write.updateOne.update.$set.description, /at 1 kg and above/);
+      assert.equal(write.updateOne.upsert, undefined);
+    }
+    assert.match(migrationKey, /discount-from-1kg/);
+  } finally {
+    CatalogueRelease.exists = original.exists;
+    CatalogueRelease.updateOne = original.updateOne;
+    Product.bulkWrite = original.bulkWrite;
   }
 });
 
