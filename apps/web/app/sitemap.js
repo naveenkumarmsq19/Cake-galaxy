@@ -1,3 +1,5 @@
+export const dynamic = "force-static";
+
 const origin = "https://cakegalaxy.in";
 
 export default function sitemap() {
