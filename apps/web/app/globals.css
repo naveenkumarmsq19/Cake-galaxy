@@ -258,7 +258,9 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .footer-grid > div > a:not(.brand) { display: block; font-size: 13px; color: var(--muted); margin: 9px 0; }
 .footer-brand p { color: var(--muted); font-size: 14px; margin: 20px 0; }
 .footer-bottom { display: flex; justify-content: space-between; font-size: 12px; color: #747d6f; border-top: 1px solid #dbe2d5; margin-top: 38px; padding-top: 20px; }
-.footer-bottom > span:last-child { display: flex; gap: 12px; }
+.footer-bottom > span:nth-child(2) { display: flex; gap: 12px; }
+.footer-credit { display: inline-flex; align-items: baseline; gap: 4px; }
+.footer-credit strong { color: var(--forest); font-weight: 650; }
 .mobile-nav { display: none; }
 .chat-launcher { position: fixed; right: 22px; bottom: 22px; z-index: 40; width: 52px; height: 52px; display: grid; place-items: center; color: #fff; border: 0; background: var(--green); border-radius: 50%; box-shadow: 0 6px 25px #23342326; }
 .support-panel { position: fixed; z-index: 50; right: 22px; bottom: 86px; width: min(350px,calc(100% - 28px)); border: 1px solid var(--line); background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 45px #23342326; }
