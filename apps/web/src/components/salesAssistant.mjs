@@ -18,12 +18,13 @@ export function findProducts(query,catalog){
  }).filter(x=>x.matched&&x.score>=0.52).sort((a,b)=>b.score-a.score||a.product.name.localeCompare(b.product.name)).slice(0,4);
 }
 export function parseOptions(text){
- const q=String(text||"").toLowerCase();
+ const numberWords={one:"1",two:"2",three:"3",four:"4",five:"5",six:"6",seven:"7",eight:"8",nine:"9",ten:"10"};
+ const q=String(text||"").toLowerCase().replace(/-/g," ").replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\s+(?=kilograms?|kilos?|kg|cakes?|pieces?)/g,(all,num)=>numberWords[num]+" ");
  const kg=q.match(/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilograms?)\b/);
  const gm=q.match(/\b(\d{3,4})\s*(g|gm|grams?)\b/);
  const size=kg?Number(kg[1]):gm?Number(gm[1])/1000:/\bhalf\s*(kg|kilo|kilogram)\b/.test(q)?0.5:null;
  const eggless=/\b(egg\s*less|egless|egles|eggless|without\s+eggs?)\b/.test(q)?true:/\b(with\s+egg|non\s*eggless)\b/.test(q)?false:null;
- const qty=q.match(/\b(?:quantity|qty|pieces|pcs)\s*[:=]?\s*(\d{1,2})\b/);
+ const qty=q.match(/\b(?:quantity|qty|pieces|pcs)\s*[:=]?\s*(\d{1,2})\b/)||q.match(/\b(\d{1,2})\s+(?:cakes?|pieces?|pcs)\b/);
  return {size:Number.isFinite(size)&&size>0?size:null,eggless,quantity:qty?Math.min(20,Number(qty[1])):1};
 }
 export function productReply(product,options={}){
