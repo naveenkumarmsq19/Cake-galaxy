@@ -9,7 +9,7 @@ import { scrollChatToBottom } from "./chatScroll.mjs";
 import styles from "./SmartChat.module.css";
 import ChatOrderFlow from "./ChatOrderFlow";
 
-const greeting={who:"bot",text:"Hello! I am NC Bot, your Cake Galaxy shopping assistant. If you are unsure what to choose, tap Browse Cakes to explore categories and cake photos."};
+const greeting={who:"bot",text:"Welcome to Cake Galaxy! I can help you find the perfect cake, browse our collection, and place your order. Not sure what to choose? Tap Browse Cakes to explore categories and photos."};
 const limited=(items)=>items.slice(-28);
 
 function OrderReceipt({receipt}){
@@ -130,9 +130,9 @@ export default function SmartChat(){
    append({who:"bot",text:`${product.name} has been added to your bag. You can complete the order here in chat, or use regular checkout.`,orderChat:true,link:"/cart"});
  }
  return <>
-   <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"NC Bot · Chat"} </button>
+   <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
    {open&&<aside className={styles.panel} role="region" aria-label="Cake Galaxy shopping assistant">
-     <header className={styles.header}><span className={styles.brandMark} aria-hidden="true">NC</span><div className={styles.brandCopy}><strong>NC Bot™</strong><small>Cake Galaxy · Your cake shopping assistant</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
+     <header className={styles.header}><div className={styles.brandCopy}><strong>Cake Galaxy Assistant</strong><small>Here to help with cakes & orders</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
      {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)} onOrderPlaced={orderPlaced}/> : <>
      <div ref={chatFeedRef} className={styles.feed} aria-live="polite" aria-relevant="additions">
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
@@ -158,7 +158,7 @@ export default function SmartChat(){
        <button type="submit" disabled={working||!input.trim()}>Send</button>
      </form>
      </>}
-     <p className={styles.note}>NC Bot™ by NC Groups · Verified Cake Galaxy information. Please never share OTPs in chat messages.</p>
+     <footer className={styles.note}><span>Please never share OTPs or payment details in chat messages.</span><span className={styles.botCredit}>Powered by NC Bot™ · NC Groups</span></footer>
    </aside>}
  </>;
 }
