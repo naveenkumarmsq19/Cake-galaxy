@@ -8,6 +8,7 @@ import { useStore } from "./Storefront";
 import { addCalendarDays, availableDeliverySlots, firstAvailableDate, indiaNow, isBookableDate } from "./deliverySchedule";
 import { calculateChatTotal, makeChatOrderPayload, makeConfirmedChatReceipt, methodsAvailable, phoneValid, pinValid, validateChatCart, validateChatDetails } from "./chatCheckout.mjs";
 import styles from "./ChatOrderFlow.module.css";
+import { checkoutPaymentDescriptions, checkoutSubmitState } from "./chatCheckoutUi.mjs";
 
 const initialAddress={name:"",phone:"",line1:"",line2:"",city:"Bengaluru",whatsapp:false};
 
@@ -61,6 +62,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
  const today=indiaNow().date;
  const slots=delivery.date?availableDeliverySlots(delivery.date):[];
  const methods=methodsAvailable(config);
+ const submitState=checkoutSubmitState({busy,accepted,methods,method});
  const sender={name:senderName.trim(),phone};
  const address={...recipient,pincode:pin};
  const stepNumber={pincode:1,delivery:2,verify:3,address:4,review:5,complete:5}[step];
@@ -241,12 +243,48 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
        <p><strong>Tax:</strong> {money(confirmedTotal?.tax||0)}</p>
        <p className={styles.total}><strong>Total payable:</strong> <strong>{money(confirmedTotal?.total||0)}</strong></p>
      </div>
-     <fieldset className={styles.methods}><legend>Payment method</legend>
-       {methods.map(option=><label key={option.id}><input type="radio" name="chatPayment" checked={method===option.id} onChange={()=>setMethod(option.id)}/>{option.label}</label>)}
+     <fieldset className={styles.methods}>
+       <legend>Payment method</legend>
+       <div className={styles.paymentList}>
+         {methods.map(option=><label
+           key={option.id}
+           className={styles.paymentOption}
+           data-selected={method===option.id}
+         >
+           <input
+             className={styles.paymentRadio}
+             type="radio"
+             name="chatPayment"
+             value={option.id}
+             checked={method===option.id}
+             onChange={()=>setMethod(option.id)}
+           />
+           <span className={styles.paymentDescription}>
+             <strong>{option.label}</strong>
+             <small>{checkoutPaymentDescriptions[option.id]}</small>
+           </span>
+         </label>)}
+       </div>
+       {!methods.length && <p className={styles.paymentUnavailable}>Payment options are temporarily unavailable. No order has been placed.</p>}
      </fieldset>
-     <label className={styles.checkbox}><input type="checkbox" checked={accepted} onChange={e=>setAccepted(e.target.checked)}/> I agree to the <Link href="/policy?type=terms" target="_blank">terms</Link> and <Link href="/policy?type=refund" target="_blank">cancellation policy</Link>.</label>
-     <button className={styles.orderButton} type="button" disabled={busy||!accepted||!methods.length} onClick={placeOrder}>{method==="online"?"Proceed to secure payment":method==="test_cod"?"Place test order":"Confirm & place COD order"}</button>
-     <p className={styles.small}>An order is submitted only when you press the button above. Online payment is processed securely by Razorpay.</p>
+     <div className={styles.termsCard}>
+       <input
+         className={styles.termsCheckbox}
+         id="nc-chat-order-terms"
+         type="checkbox"
+         checked={accepted}
+         onChange={e=>setAccepted(e.target.checked)}
+       />
+       <div className={styles.termsBody}>
+         <label htmlFor="nc-chat-order-terms">I agree to the terms and cancellation policy.</label>
+         <div className={styles.policyLinks}>
+           <Link href="/policy?type=terms" target="_blank" rel="noopener noreferrer">View terms</Link>
+           <Link href="/policy?type=refund" target="_blank" rel="noopener noreferrer">Cancellation policy</Link>
+         </div>
+       </div>
+     </div>
+     <button className={styles.orderButton} type="button" aria-busy={busy} disabled={submitState.disabled} onClick={placeOrder}>{submitState.label}</button>
+     <p className={styles.small}>Your order is submitted only after you confirm. Online payments use secure Razorpay checkout.</p>
    </section>}
    {step==="complete"&&<section>
      <p className={styles.success}>Your order has been confirmed.</p>
