@@ -6,12 +6,14 @@ import { useStore } from "./Storefront";
 import { localAnswer, parseOptions, productReply } from "./salesAssistant.mjs";
 import { scrollChatToBottom } from "./chatScroll.mjs";
 import styles from "./SmartChat.module.css";
+import ChatOrderFlow from "./ChatOrderFlow";
 
 const greeting={who:"bot",text:"Welcome to Cake Galaxy! Tell me the cake or occasion you have in mind. I can help you choose a cake, add it to your bag, and guide you through checkout."};
 const limited=(items)=>items.slice(-28);
 
 export default function SmartChat(){
- const {catalog,catalogLoaded,checkDelivery,addItem,hydrated}=useStore();
+ const {catalog,catalogLoaded,checkDelivery,addItem,hydrated,cart}=useStore();
+ const [ordering,setOrdering]=useState(false);
  const [open,setOpen]=useState(false);
  const [messages,setMessages]=useState([greeting]);
  const [input,setInput]=useState("");
@@ -75,34 +77,42 @@ export default function SmartChat(){
    const result=productReply(product,{size,eggless:selected?.eggless||false,quantity:pendingOptions.current.quantity||1});
    remember(result);
  }
+ function startChatOrder(){
+   if(!cart.length){append({who:"bot",text:"Please select a cake and add it to your bag before starting your order."});return;}
+   setOrdering(true);
+ }
  function addToBag(item){
    const product=catalog.find(p=>p.id===item?.productId);
    if(!product||!product.weights.includes(item.size)||product.photo)return;
    addItem(item);
-   append({who:"bot",text:`${product.name} has been added to your bag. Review your delivery details and complete the order through secure checkout.`,link:"/cart"});
+   append({who:"bot",text:`${product.name} has been added to your bag. You can complete the order here in chat, or use regular checkout.`,orderChat:true,link:"/cart"});
  }
  return <>
    <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
    {open&&<aside className={styles.panel} role="region" aria-label="Cake Galaxy shopping assistant">
      <header className={styles.header}><div><strong>Cake Galaxy Assistant</strong><small>Ask a question or get help ordering</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
+     {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)}/> : <>
      <div ref={chatFeedRef} className={styles.feed} aria-live="polite" aria-relevant="additions">
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
           <p>{m.text}</p>
           {Array.isArray(m.choices)&&m.choices.map(c=><button className={styles.choice} type="button" key={c.id} disabled={working} onClick={()=>chooseProduct(c.id)}>{c.name}</button>)}
           {Array.isArray(m.sizes)&&m.sizes.map(size=><button className={styles.choice} type="button" key={String(size)} disabled={working} onClick={()=>chooseSize(m.productId,size)}>{size} kg</button>)}
           {m.item&&<button type="button" disabled={working} className={styles.action} onClick={()=>addToBag(m.item)}>Add to bag</button>}
+          {m.orderChat&&<button type="button" disabled={working} className={styles.action} onClick={startChatOrder}>Order through Chat</button>}
           {m.link&&<Link className={styles.actionLink} href={m.link} onClick={()=>setOpen(false)}>{m.link==="/cart"?"Review bag":m.link==="/orders"?"My Orders":m.link==="/custom"?"Custom Cakes":m.link.startsWith("/product")?"View product":m.link==="/shop"?"Browse cakes":"Help & contact"}</Link>}
         </div>)}
         {working&&<p className={styles.status} role="status">Checking your request…</p>}
      </div>
      <div className={styles.suggestions}>
+       <button type="button" disabled={working} onClick={startChatOrder}>Order through Chat{cart.length?` (${cart.length})`:""}</button>
        {["Chocolate cakes","Custom cakes","Delivery","My Orders"].map(v=><button key={v} type="button" disabled={working} onClick={()=>send(v)}>{v}</button>)}
      </div>
      <form className={styles.form} onSubmit={e=>{e.preventDefault();send(input);}}>
        <input aria-label="Ask the shopping assistant" placeholder="Ask about cakes or orders" value={input} onChange={e=>setInput(e.target.value)} maxLength={500} disabled={working}/>
        <button type="submit" disabled={working||!input.trim()}>Send</button>
      </form>
-     <p className={styles.note}>Prices, delivery and orders are confirmed during checkout. Do not share OTPs or payment details in chat.</p>
+     </>}
+     <p className={styles.note}>Delivery and orders are confirmed securely. Do not share OTPs or payment details in chat messages.</p>
    </aside>}
  </>;
 }

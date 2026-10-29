@@ -65,3 +65,9 @@ test("English number words remain valid after AI grammar normalization",()=>{
  assert.equal(opts.eggless,true);
  assert.equal(parseOptions("two cakes, 500 grams each").quantity,2);
 });
+
+test("assistant does not promise an unavailable eggless product",()=>{
+ const result=productReply({...catalog[0],eggless:false},{size:1,eggless:true});
+ assert.equal(result.item,undefined);
+ assert.match(result.text,/Eggless is not currently available/);
+});
