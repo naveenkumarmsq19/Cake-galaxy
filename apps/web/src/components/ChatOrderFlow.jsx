@@ -6,7 +6,7 @@ import { money } from "@cake-galaxy/catalog";
 import PhoneVerification from "./PhoneVerification";
 import { useStore } from "./Storefront";
 import { addCalendarDays, availableDeliverySlots, firstAvailableDate, indiaNow, isBookableDate } from "./deliverySchedule";
-import { calculateChatTotal, makeChatOrderPayload, methodsAvailable, phoneValid, pinValid, validateChatCart, validateChatDetails } from "./chatCheckout.mjs";
+import { calculateChatTotal, makeChatOrderPayload, makeConfirmedChatReceipt, methodsAvailable, phoneValid, pinValid, validateChatCart, validateChatDetails } from "./chatCheckout.mjs";
 import styles from "./ChatOrderFlow.module.css";
 
 const initialAddress={name:"",phone:"",line1:"",line2:"",city:"Bengaluru",whatsapp:false};
@@ -40,7 +40,7 @@ async function takePayment({config,data,sender}){
 }
 
 /** A self-contained checkout wizard inside the existing chatbot: no separate pages. */
-export default function ChatOrderFlow({onClose}){
+export default function ChatOrderFlow({onClose,onOrderPlaced}){
  const {cart,catalog,session,api,checkDelivery,clearCart,setReceipt,saveCheckoutDetails,pincode:storedPin,hydrated}=useStore();
  const [step,setStep]=useState("pincode");
  const [pin,setPin]=useState(storedPin||"");
@@ -124,6 +124,20 @@ export default function ChatOrderFlow({onClose}){
    setAccepted(false);
    setStep("review");
  });
+ function finishConfirmedOrder(order){
+   // Only return to chat after the existing backend confirms a COD order
+   // or securely verifies an online payment. No AI output can create a receipt.
+   const receipt=makeConfirmedChatReceipt({
+     order, expectedReference:order.reference, expectedMethod:method,
+     expectedAmount:confirmedTotal.total, cart, catalog, address, delivery
+   });
+   setReceipt(order);
+   setConfirmedOrder(order);
+   attempt.current=null;
+   clearCart();
+   if(onOrderPlaced)onOrderPlaced(receipt);
+   else setStep("complete");
+ }
  const placeOrder=busyGuard(async()=>{
    if(!accepted)throw Error("Please review and accept the terms and cancellation policy.");
    if(!session.authenticated||session.phone!==phone)throw Error("Please verify your phone number again.");
@@ -158,22 +172,16 @@ export default function ChatOrderFlow({onClose}){
      if(data.status!=="confirmed"||data.order?.paymentStatus!==expected){
        throw Error("Order status could not be confirmed. Check My Orders before trying again.");
      }
-     setReceipt(data.order);
-     setConfirmedOrder(data.order);
-     attempt.current=null;
-     clearCart();
-     setStep("complete");
+     if(data.order.reference!==data.reference)throw Error("Order reference could not be verified. Check My Orders.");
+     finishConfirmedOrder(data.order);
      return;
    }
    if(!data.orderId||!freshConfig.keyId)throw Error("Payment could not be prepared. Check My Orders before trying again.");
    const payment=await takePayment({config:freshConfig,data,sender});
    const verified=await api("/checkout/verify",{method:"POST",body:{reference:data.reference,...payment}});
    if(verified.status!=="paid"||!verified.order)throw Error("Payment confirmation is pending. Please check My Orders.");
-   setReceipt(verified.order);
-   setConfirmedOrder(verified.order);
-   attempt.current=null;
-   clearCart();
-   setStep("complete");
+   if(verified.order.reference!==data.reference)throw Error("Payment order reference could not be verified. Check My Orders.");
+   finishConfirmedOrder(verified.order);
  });
 
  return <div className={styles.root} ref={flowRef} role="region" aria-label="Order through chat">
