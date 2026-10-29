@@ -149,7 +149,28 @@ main { min-height: 65vh; }
 .field-group { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 23px; }
 label,.field-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 label small { font-weight: 400; color: var(--muted); }
-input,select,textarea { display: block; width: 100%; min-width: 0; min-height: 46px; border: 1px solid #d9e0d6; border-radius: 6px; background: #fff; color: var(--ink); padding: 11px 13px; }
+/* Apply full-width text-field dimensions only to text-like inputs.
+   Checkbox/radio controls must never inherit 100% width or 46px height. */
+input:not([type="checkbox"]):not([type="radio"]),select,textarea { display: block; width: 100%; min-width: 0; min-height: 46px; border: 1px solid #d9e0d6; border-radius: 6px; background: #fff; color: var(--ink); padding: 11px 13px; }
+:where(input[type="checkbox"],input[type="radio"]) {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  min-height: 19px;
+  max-width: 19px;
+  max-height: 19px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 19px;
+  vertical-align: middle;
+  accent-color: var(--green);
+  background: #fff;
+  cursor: pointer;
+}
+:where(input[type="checkbox"],input[type="radio"]):disabled { cursor: not-allowed; opacity: .55; }
+:where(input[type="checkbox"],input[type="radio"]):focus-visible { outline: 3px solid #8da58a; outline-offset: 3px; }
 textarea { min-height: 105px; resize: vertical; }
 input::placeholder,textarea::placeholder { color: #90968e; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -160,8 +181,9 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .choice span { display: block; padding: 9px 16px; border: 1px solid var(--line); border-radius: 5px; font-size: 14px; font-weight: 500; }
 .choice input:checked + span { color: var(--green); background: var(--sage-light); border-color: var(--sage); }
 .choice input:focus-visible + span { outline: 3px solid var(--sage); outline-offset: 2px; }
-.check-label { display: flex; align-items: center; gap: 10px; font-weight: 400; font-size: 14px; margin: 14px 0; }
-.check-label input { width: 17px; min-height: 17px; height: 17px; accent-color: var(--green); margin: 0; flex-shrink: 0; }
+.check-label { display: flex; align-items: flex-start; min-width: 0; min-height: 42px; gap: 11px; padding: 9px 0; font-weight: 400; font-size: 14px; line-height: 1.5; margin: 8px 0; cursor: pointer; overflow-wrap: anywhere; }
+.check-label > input:is([type="checkbox"],[type="radio"]) { display: inline-block; box-sizing: border-box; width: 19px; height: 19px; min-width: 19px; min-height: 19px; max-width: 19px; max-height: 19px; margin: 1px 0 0; padding: 0; flex: 0 0 19px; accent-color: var(--green); }
+.check-label .subtle { font-size: 12px; }
 .check-label strong { font-weight: 550; }
 .purchase-bar { display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 12px; margin-top: 25px; }
 .quantity { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 5px; min-height: 44px; width: 105px; }
@@ -199,10 +221,17 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .compact-item small { display: block; color: var(--muted); margin-top: 4px; }
 .checkout-address { display: flex; justify-content: space-between; align-items: start; gap: 24px; }
 .checkout-address p { margin: 0; font-size: 14px; line-height: 1.8; }
-.payment-option { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 15px; margin-bottom: 12px; cursor: pointer; font-weight: 400; }
-.payment-option input { width: 18px; min-height: 18px; height: 18px; accent-color: var(--green); margin: 0; }
-.payment-option small { display: block; font-size: 12px; color: var(--muted); }
-.payment-option:has(input:checked) { background: #f4f7f0; border-color: #aabc9f; }
+.payment-option { display: flex; width: 100%; min-width: 0; gap: 12px; align-items: center; border: 1px solid #d5e2d3; border-radius: 12px; padding: 14px; margin: 0 0 10px; cursor: pointer; font-weight: 400; background: #fff; min-height: 70px; }
+.payment-option > input[type="radio"] { display: inline-block; box-sizing: border-box; flex: 0 0 20px; width: 20px; height: 20px; min-width: 20px; min-height: 20px; max-width: 20px; max-height: 20px; margin: 0; padding: 0; accent-color: var(--green); }
+.payment-option > span { display: flex; flex-direction: column; min-width: 0; gap: 2px; line-height: 1.35; }
+.payment-option strong { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.payment-option small { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.payment-option:has(input:checked) { background: #f2f7f0; border-color: var(--green); box-shadow: 0 0 0 1px #38533f1f; }
+.payment-option:focus-within { outline: 2px solid #c4d6c3; outline-offset: 2px; }
+.checkout-terms { display: block; min-width: 0; margin: 10px 0 16px; padding: 10px 13px; border: 1px solid #e0e8de; background: #f9fbf8; border-radius: 12px; }
+.checkout-terms .check-label { margin: 0; min-height: 30px; padding: 3px 0; }
+.checkout-policy-links { display: flex; flex-wrap: wrap; gap: 6px 15px; padding: 0 0 1px 30px; font-size: 12px; }
+.checkout-policy-links a { color: var(--green); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .payment-trust { display: flex; justify-content: center; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; margin-top: 14px; }
 .payment-trust .icon { width: 14px; height: 14px; }
 .form-message { font-size: 14px; color: var(--error); margin: 14px 0; overflow-wrap: anywhere; }
@@ -696,8 +725,8 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .product-card-info{flex:1;display:flex;flex-direction:column;min-width:0}
 .product-card-image img{width:100%;height:100%;object-fit:cover}
 .product-card h3 a{overflow-wrap:anywhere}
-.field-group input:not([type=checkbox]),.field-group select,
-.checkout-layout input:not([type=checkbox]),.checkout-layout select {max-width:100%}
+.field-group input:not([type=checkbox]):not([type=radio]),.field-group select,
+.checkout-layout input:not([type=checkbox]):not([type=radio]),.checkout-layout select {max-width:100%}
 @media(max-width:580px){
  .catalog-toolbar{align-items:stretch}
  .catalog-toolbar>*{min-width:0}
@@ -706,9 +735,19 @@ input::placeholder,textarea::placeholder { color: #90968e; }
  .product-card .button,.detail-panel .button,.checkout-layout .button{min-height:44px}
  .detail-grid{gap:18px}
  .field-group{margin-top:15px;padding-top:15px}
- .field-group input:not([type=checkbox]),.field-group select,
- .checkout-layout input:not([type=checkbox]),.checkout-layout select{font-size:16px}
+ .field-group input:not([type=checkbox]):not([type=radio]),.field-group select,
+ .checkout-layout input:not([type=checkbox]):not([type=radio]),.checkout-layout select{font-size:16px}
  .checkout-address{gap:12px;overflow-wrap:anywhere}
  .phone-verification input{min-width:0;max-width:100%;font-size:16px}
  .product-card-info h3{min-height:0}
+}
+
+/* Ensure disabled/selected controls stay legible at narrow mobile widths. */
+@media(max-width:600px) {
+ .payment-option { padding: 12px; min-height: 68px; }
+ .payment-option strong { font-size: 13px; }
+ .payment-option small { font-size: 11px; }
+ .option-row .choice span { min-height: 42px; display: flex; align-items: center; }
+ .checkout-terms { padding: 11px; }
+ .checkout-policy-links { padding-left: 30px; }
 }
