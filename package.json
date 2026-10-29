@@ -2,12 +2,18 @@
   "name": "cake-galaxy",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
-  "workspaces": ["apps/web", "apps/api", "packages/catalog"],
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/catalog"
+  ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "npm run build -w @cake-galaxy/web",
-    "check": "npm run check -w @cake-galaxy/api && npm run build -w @cake-galaxy/web",
+    "check": "npm run check -w @cake-galaxy/api && npm run test:chat -w @cake-galaxy/web && npm run build -w @cake-galaxy/web",
     "start:api": "npm run start -w @cake-galaxy/api",
     "start:web": "npm run start -w @cake-galaxy/web"
   }
