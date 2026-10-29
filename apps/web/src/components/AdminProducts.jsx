@@ -126,6 +126,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
     execute(async () => {
       const sizes = draft.weights.split(",").map(v => Number(v.trim()));
       if (!sizes.length || sizes.some(v => !Number.isFinite(v) || v <= 0)) throw new Error("Enter valid sizes.");
+       if (draft.unit === "kg" && sizes.some(v => ![0.5,1,2,3,4,5].includes(v))) throw new Error("Cake weights must be 0.5, 1, 2, 3, 4, or 5 kg.");
       if (draft.unit === "menu" && draft.eggless) throw new Error("Menu options need confirmed kilogram weights before eggless pricing.");
       const prices = parseMap(draft.variantPrices, true);
       const labels = parseMap(draft.variantLabels);
@@ -203,7 +204,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
          {draft.categoryMode === "manual" && <label>Category<select required value={draft.category} onChange={e=>change("category",e.target.value)}><option value="">Choose category</option>{categories.filter(c=>c.active).map(c=><option key={c.slug} value={c.name}>{c.name}</option>)}</select></label>}
          {draft.categoryMode === "auto" && <p className="admin-muted admin-wide">The matching enabled category will be selected automatically. You can change it to Manual at any time.</p>}
         <label>Size type<select value={draft.unit} onChange={e=>change("unit",e.target.value)}><option value="kg">Kilograms</option><option value="pieces">Pieces</option><option value="menu">Printed menu portions</option></select></label>
-        <label>{draft.unit==="menu"?"Option codes (e.g. 1,2,3)":"Available sizes (comma separated)"}<input required value={draft.weights} onChange={e=>change("weights",e.target.value)}/></label>
+        <label>{draft.unit==="menu"?"Option codes (e.g. 1,2,3)":"Available sizes (comma separated; cakes up to 5 kg)"}<input required value={draft.weights} onChange={e=>change("weights",e.target.value)}/></label>
         <label>Base price (₹)<input required type="number" min="0.01" step="0.01" value={draft.price} onChange={e=>change("price",e.target.value)}/></label>
         <label>Exact prices (code:₹)<input placeholder="1:40, 2:249, 3:399" value={draft.variantPrices} onChange={e=>change("variantPrices",e.target.value)}/></label>
         <label className="admin-wide">Option labels (code:name)<input placeholder="1:Pastry, 2:Small, 3:Medium" value={draft.variantLabels} onChange={e=>change("variantLabels",e.target.value)}/></label>
