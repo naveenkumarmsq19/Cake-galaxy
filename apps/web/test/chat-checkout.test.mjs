@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { addCalendarDays,indiaNow } from "../src/components/deliverySchedule.js";
-import { phoneValid,pinValid,methodsAvailable,validateChatCart,validateChatDetails,calculateChatTotal,makeChatOrderPayload } from "../src/components/chatCheckout.mjs";
+import { phoneValid,pinValid,methodsAvailable,validateChatCart,validateChatDetails,calculateChatTotal,makeChatOrderPayload,makeConfirmedChatReceipt } from "../src/components/chatCheckout.mjs";
 
 const product={id:"truffle",name:"Chocolate Truffle Cake",price:44900,weights:[0.5,1,1.5],unit:"kg",flavour:"Chocolate",eggless:true,photo:false,active:true};
 const item={id:"basket-1",productId:"truffle",size:1,quantity:1,flavour:"Chocolate",eggless:true,addons:[]};
@@ -50,4 +50,61 @@ test("checkout payload uses API shape and stable UUID idempotency key",()=>{
 test("order payload rejects invalid payment methods and invalid attempt IDs",()=>{
  assert.throws(()=>makeChatOrderPayload({cart,sender,address,delivery,method:"admin",idempotencyKey:"f17ca915-dcda-462b-af1a-a67348390d22"}),/payment method/);
  assert.throws(()=>makeChatOrderPayload({cart,sender,address,delivery,method:"cod",idempotencyKey:"no-id"}),/Invalid order attempt/);
+});
+
+const receiptContext={
+ cart,catalog,address,delivery,expectedReference:"CGABC123DEF",expectedAmount:95820
+};
+function checkedOrder(method,status){
+ return {
+   reference:"CGABC123DEF",amount:95820,status:"confirmed",
+   statusLabel:method==="cod"?"COD · confirmed":"Order confirmed",
+   deliveryLabel:"2026-11-01 · 4 PM – 7 PM",
+   paymentMethod:method,paymentStatus:status,testOrder:method==="test_cod"
+ };
+}
+test("successful COD checkout creates a structured chat message with order details",()=>{
+ const receipt=makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"cod",order:checkedOrder("cod","cod_pending")
+ });
+ assert.equal(receipt.reference,"CGABC123DEF");
+ assert.equal(receipt.total,95820);
+ assert.deepEqual(receipt.items,[{name:"Chocolate Truffle Cake",quantity:1,size:1,unit:"kg",eggless:true}]);
+ assert.match(receipt.deliveryAddress,/560072/);
+ assert.match(receipt.paymentLabel,/payment pending/);
+ assert.ok(!JSON.stringify(receipt).includes(sender.phone));
+ assert.ok(!JSON.stringify(receipt).includes(address.phone));
+});
+test("verified online payment creates a paid chat message",()=>{
+ const receipt=makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"online",order:checkedOrder("online","paid")
+ });
+ assert.equal(receipt.paymentLabel,"Paid online");
+ assert.equal(receipt.status,"Order confirmed");
+});
+test("test COD confirmation is clearly labelled, not presented as paid",()=>{
+ const receipt=makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"test_cod",order:checkedOrder("test_cod","test_cod")
+ });
+ assert.equal(receipt.testOrder,true);
+ assert.match(receipt.paymentLabel,/no payment collected/);
+});
+test("unpaid online or unconfirmed COD orders never generate confirmation messages",()=>{
+ assert.throws(()=>makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"online",order:checkedOrder("online","pending")
+ }),/could not be verified/);
+ assert.throws(()=>makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"cod",order:{...checkedOrder("cod","cod_pending"),status:"pending_payment"}
+ }),/could not be verified/);
+});
+test("tampered reference, total or test flags block chat confirmations",()=>{
+ assert.throws(()=>makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"cod",order:{...checkedOrder("cod","cod_pending"),amount:1}
+ }),/could not be verified/);
+ assert.throws(()=>makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"cod",order:{...checkedOrder("cod","cod_pending"),reference:"CGOTHER"}
+ }),/could not be verified/);
+ assert.throws(()=>makeConfirmedChatReceipt({
+   ...receiptContext,expectedMethod:"test_cod",order:{...checkedOrder("test_cod","test_cod"),testOrder:false}
+ }),/could not be verified/);
 });

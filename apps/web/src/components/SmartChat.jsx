@@ -11,6 +11,27 @@ import ChatOrderFlow from "./ChatOrderFlow";
 const greeting={who:"bot",text:"Welcome to Cake Galaxy! Tell me the cake or occasion you have in mind. I can help you choose a cake, add it to your bag, and guide you through checkout."};
 const limited=(items)=>items.slice(-28);
 
+function OrderReceipt({receipt}){
+ return <section className={styles.orderReceipt} aria-label={"Confirmed order "+receipt.reference}>
+   <strong className={styles.receiptTitle}>Order Confirmed</strong>
+   <div className={styles.receiptRow}><span>Order ID</span><strong>{receipt.reference}</strong></div>
+   <div className={styles.receiptProducts}>
+     <strong>Cakes</strong>
+     {receipt.items.map((item,index)=><p key={index}>{item.name} · {item.size} {item.unit} × {item.quantity}{item.eggless?" · Eggless":""}</p>)}
+   </div>
+   <div className={styles.receiptRow}><span>Delivery</span><strong>{receipt.deliveryLabel}</strong></div>
+   <div className={styles.receiptRow}><span>Recipient</span><strong>{receipt.recipient}</strong></div>
+   <div className={styles.receiptAddress}><span>Delivery address</span><p>{receipt.deliveryAddress}</p></div>
+   <div className={styles.receiptRow}><span>Payment</span><strong>{receipt.paymentLabel}</strong></div>
+   <div className={styles.receiptRow}><span>Status</span><strong>{receipt.status}</strong></div>
+   <div className={styles.receiptTotal}><span>Order total</span><strong>{new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(receipt.total/100)}</strong></div>
+   {receipt.testOrder&&<p className={styles.receiptNote}>Test order — no payment collected.</p>}
+   <Link className={styles.actionLink} href="/orders">View My Orders</Link>
+ </section>;
+}
+
+
+
 export default function SmartChat(){
  const {catalog,catalogLoaded,checkDelivery,addItem,hydrated,cart}=useStore();
  const [ordering,setOrdering]=useState(false);
@@ -20,6 +41,7 @@ export default function SmartChat(){
  const [working,setWorking]=useState(false);
  const [selected,setSelected]=useState(null);
  const pendingOptions=useRef({});
+ const confirmedReferences=useRef(new Set());
  const chatFeedRef=useRef(null);
  // Reveal the newest conversation message after React updates the feed.
  useLayoutEffect(()=>{
@@ -29,7 +51,7 @@ export default function SmartChat(){
    scrollChatToBottom(feed);
    const frame=requestAnimationFrame(()=>scrollChatToBottom(feed));
    return ()=>cancelAnimationFrame(frame);
- },[open,messages,working]);
+ },[open,messages,working,ordering]);
  const append=(...items)=>setMessages(prev=>limited([...prev,...items]));
  const remember=(result)=>{
    if(result?.productId) setSelected(prev=>({productId:result.productId,size:result.item?.size??prev?.size??null,eggless:result.item?.eggless??prev?.eggless??false}));
@@ -81,6 +103,12 @@ export default function SmartChat(){
    if(!cart.length){append({who:"bot",text:"Please select a cake and add it to your bag before starting your order."});return;}
    setOrdering(true);
  }
+ function orderPlaced(receipt){
+   if(confirmedReferences.current.has(receipt.reference))return;
+   confirmedReferences.current.add(receipt.reference);
+   append({who:"bot",text:"Thank you! Your Cake Galaxy order has been confirmed. Here are your order details:",receipt});
+   setOrdering(false);
+ }
  function addToBag(item){
    const product=catalog.find(p=>p.id===item?.productId);
    if(!product||!product.weights.includes(item.size)||product.photo)return;
@@ -91,10 +119,11 @@ export default function SmartChat(){
    <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
    {open&&<aside className={styles.panel} role="region" aria-label="Cake Galaxy shopping assistant">
      <header className={styles.header}><div><strong>Cake Galaxy Assistant</strong><small>Ask a question or get help ordering</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
-     {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)}/> : <>
+     {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)} onOrderPlaced={orderPlaced}/> : <>
      <div ref={chatFeedRef} className={styles.feed} aria-live="polite" aria-relevant="additions">
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
           <p>{m.text}</p>
+          {m.receipt&&<OrderReceipt receipt={m.receipt}/>}
           {Array.isArray(m.choices)&&m.choices.map(c=><button className={styles.choice} type="button" key={c.id} disabled={working} onClick={()=>chooseProduct(c.id)}>{c.name}</button>)}
           {Array.isArray(m.sizes)&&m.sizes.map(size=><button className={styles.choice} type="button" key={String(size)} disabled={working} onClick={()=>chooseSize(m.productId,size)}>{size} kg</button>)}
           {m.item&&<button type="button" disabled={working} className={styles.action} onClick={()=>addToBag(m.item)}>Add to bag</button>}

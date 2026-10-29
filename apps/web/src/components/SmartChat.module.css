@@ -20,3 +20,19 @@
 .note{font-size:10px;line-height:1.4;color:#667568;padding:0 14px 10px;margin:0;text-align:center}
 .status{font-size:12px;color:#657064;margin:0}
 @media(max-width:600px){.launcher{right:12px;bottom:72px;padding:12px 16px}.panel{right:8px;bottom:125px;width:calc(100vw - 16px);height:min(560px,calc(100dvh - 150px))}}
+
+
+/* Server-confirmed order summary appears as a normal bot message. */
+.orderReceipt{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:12px;border:1px solid #c9deca;background:#fff;border-radius:10px;overflow-wrap:anywhere}
+.receiptTitle{color:#315d37;font-size:14px}
+.receiptRow{display:flex;align-items:start;justify-content:space-between;gap:12px;font-size:12px;line-height:1.45}
+.receiptRow span,.receiptAddress span{color:#637269;flex:0 0 auto}
+.receiptRow strong{font-weight:650;text-align:right;min-width:0}
+.receiptProducts{padding:8px 0;border-block:1px solid #e6eee3;font-size:12px}
+.receiptProducts>strong{display:block;margin-bottom:5px}
+.receiptProducts p{margin:3px 0}
+.receiptAddress{font-size:12px;line-height:1.45}
+.receiptAddress p{margin:3px 0 0;white-space:normal}
+.receiptTotal{display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:9px;border-top:1px solid #e6eee3;color:#315d37}
+.receiptTotal strong{font-size:15px;white-space:nowrap}
+.receiptNote{font-size:11px;color:#8b5c1e}

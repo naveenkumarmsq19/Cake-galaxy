@@ -41,3 +41,53 @@ export function makeChatOrderPayload({cart,sender,address,delivery,method,idempo
  if(!/^[0-9a-f-]{36}$/i.test(idempotencyKey))throw Error("Invalid order attempt. Please retry.");
  return {items:cart.map(({productId,size,quantity,flavour,eggless,message,addons,uploadId})=>({productId,size,quantity,flavour,eggless,message,addons,uploadId})),sender,address,delivery,preferredMethod:method,gst:null,idempotencyKey};
 }
+
+
+/**
+ * Build a visible chat receipt only from a backend-confirmed order.
+ * The server supplies reference, amount, payment state, and status.
+ * Product and delivery descriptions are a snapshot of the validated checkout
+ * request because the existing public order response omits address/items.
+ * Keep phone numbers and OTPs out of the conversation transcript.
+ */
+export function makeConfirmedChatReceipt({
+ order, expectedReference, expectedMethod, expectedAmount,
+ cart, catalog, address, delivery
+}) {
+ const statuses={cod:"cod_pending",test_cod:"test_cod",online:"paid"};
+ if (!Object.hasOwn(statuses,expectedMethod) ||
+     !order || typeof order.reference!=="string" || order.reference!==expectedReference ||
+     !Number.isSafeInteger(order.amount) || order.amount<=0 || order.amount!==expectedAmount ||
+     order.paymentMethod!==expectedMethod ||
+     order.paymentStatus!==statuses[expectedMethod] ||
+     ((expectedMethod==="cod" || expectedMethod==="test_cod") && order.status!=="confirmed") ||
+     (expectedMethod==="test_cod" && order.testOrder!==true)) {
+   throw new Error("Order confirmation could not be verified. Please check My Orders.");
+ }
+ validateChatCart(cart,catalog);
+ if (!address || !delivery?.date || !delivery?.slot || !pinValid(address.pincode)) {
+   throw new Error("Order delivery details could not be verified. Please check My Orders.");
+ }
+ const items=cart.map(item=>{
+   const product=catalog.find(p=>p.id===item.productId);
+   return {
+     name:product.name, quantity:item.quantity, size:Number(item.size),
+     unit:product.unit==="kg"?"kg":product.unit==="pieces"?"pieces":"",
+     eggless:item.eggless===true
+   };
+ });
+ return {
+   reference:order.reference,
+   total:order.amount,
+   status:order.statusLabel || "Order confirmed",
+   paymentLabel:expectedMethod==="cod"?"Cash on Delivery — payment pending"
+     :expectedMethod==="test_cod"?"Test order — no payment collected"
+     :"Paid online",
+   testOrder:expectedMethod==="test_cod",
+   items,
+   recipient:String(address.name||"").trim(),
+   deliveryAddress:[address.line1,address.line2,address.city,address.pincode]
+     .filter(Boolean).join(", "),
+   deliveryLabel:order.deliveryLabel || (delivery.date+" · "+delivery.slot)
+ };
+}
