@@ -130,16 +130,18 @@ export default function SmartChat(){
    append({who:"bot",text:`${product.name} has been added to your bag. You can complete the order here in chat, or use regular checkout.`,orderChat:true,link:"/cart"});
  }
  return <>
-   <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
+   <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"NC Bot · Chat"} </button>
    {open&&<aside className={styles.panel} role="region" aria-label="Cake Galaxy shopping assistant">
-     <header className={styles.header}><div><strong>Cake Galaxy Assistant</strong><small>Ask a question or get help ordering</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
+     <header className={styles.header}><span className={styles.brandMark} aria-hidden="true">NC</span><div className={styles.brandCopy}><strong>NC Bot™</strong><small>Cake Galaxy · Your cake shopping assistant</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
      {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)} onOrderPlaced={orderPlaced}/> : <>
      <div ref={chatFeedRef} className={styles.feed} aria-live="polite" aria-relevant="additions">
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
           <p>{m.text}</p>
           {m.receipt&&<OrderReceipt receipt={m.receipt}/>}
+          {Array.isArray(m.browseCategories)&&<CategoryPicker categories={m.browseCategories} onSelect={chooseCategory} disabled={working}/>}
+          {Array.isArray(m.categoryProducts)&&<><CakeFlatList products={m.categoryProducts} onSelect={chooseProduct} disabled={working}/><button type="button" className={styles.browseAgain} disabled={working} onClick={browseCakes}>← Back to categories</button></>}
           {Array.isArray(m.choices)&&m.choices.map(c=><button className={styles.choice} type="button" key={c.id} disabled={working} onClick={()=>chooseProduct(c.id)}>{c.name}</button>)}
-          {Array.isArray(m.sizes)&&m.sizes.map(size=><button className={styles.choice} type="button" key={String(size)} disabled={working} onClick={()=>chooseSize(m.productId,size)}>{size} kg</button>)}
+          {Array.isArray(m.sizes)&&<div className={styles.sizeGrid}>{m.sizes.map(size=><button className={styles.sizePill} type="button" key={String(size)} disabled={working} onClick={()=>chooseSize(m.productId,size)}>{size} {catalog.find(p=>p.id===m.productId)?.unit==="kg"?"kg":catalog.find(p=>p.id===m.productId)?.unit==="pieces"?"pieces":""}</button>)}</div>}
           {m.item&&<button type="button" disabled={working} className={styles.action} onClick={()=>addToBag(m.item)}>Add to bag</button>}
           {m.orderChat&&<button type="button" disabled={working} className={styles.action} onClick={startChatOrder}>Order through Chat</button>}
           {m.link&&<Link className={styles.actionLink} href={m.link} onClick={()=>setOpen(false)}>{m.link==="/cart"?"Review bag":m.link==="/orders"?"My Orders":m.link==="/custom"?"Custom Cakes":m.link.startsWith("/product")?"View product":m.link==="/shop"?"Browse cakes":"Help & contact"}</Link>}
@@ -147,6 +149,7 @@ export default function SmartChat(){
         {working&&<p className={styles.status} role="status">Checking your request…</p>}
      </div>
      <div className={styles.suggestions}>
+       <button type="button" disabled={working} onClick={browseCakes}>Browse Cakes</button>
        <button type="button" disabled={working} onClick={startChatOrder}>Order through Chat{cart.length?` (${cart.length})`:""}</button>
        {["Chocolate cakes","Custom cakes","Delivery","My Orders"].map(v=><button key={v} type="button" disabled={working} onClick={()=>send(v)}>{v}</button>)}
      </div>
@@ -155,7 +158,7 @@ export default function SmartChat(){
        <button type="submit" disabled={working||!input.trim()}>Send</button>
      </form>
      </>}
-     <p className={styles.note}>Delivery and orders are confirmed securely. Do not share OTPs or payment details in chat messages.</p>
+     <p className={styles.note}>NC Bot™ by NC Groups · Verified Cake Galaxy information. Please never share OTPs in chat messages.</p>
    </aside>}
  </>;
 }
