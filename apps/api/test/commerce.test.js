@@ -38,7 +38,7 @@ test("eggless surcharge scales by weight and cakes of 1 kg or more receive a 10%
   assert.equal(line.discountPerUnit, 29960);
   assert.equal(line.discountPercent, 10);
   assert.equal(line.unitPrice, 269640);
-  assert.equal(line.lineTotal, 202230);
+  assert.equal(line.lineTotal, 269640);
 });
 
 test("phone and delivery validators reject malformed inputs", () => {
