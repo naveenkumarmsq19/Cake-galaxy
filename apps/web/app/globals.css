@@ -177,13 +177,15 @@ input::placeholder,textarea::placeholder { color: #90968e; }
 .field { margin-bottom: 18px; }
 .option-row { display: flex; flex-wrap: wrap; gap: 9px; }
 .choice { position: relative; margin: 0; cursor: pointer; }
-.choice input { position: absolute; opacity: 0; width: 1px; min-height: 0; height: 1px; }
+.choice input { position: absolute; opacity: 0; width: 1px; min-width: 1px; max-width: 1px; min-height: 1px; max-height: 1px; height: 1px; padding: 0; border: 0; }
 .choice span { display: block; padding: 9px 16px; border: 1px solid var(--line); border-radius: 5px; font-size: 14px; font-weight: 500; }
 .choice input:checked + span { color: var(--green); background: var(--sage-light); border-color: var(--sage); }
 .choice input:focus-visible + span { outline: 3px solid var(--sage); outline-offset: 2px; }
 .check-label { display: flex; align-items: flex-start; min-width: 0; min-height: 42px; gap: 11px; padding: 9px 0; font-weight: 400; font-size: 14px; line-height: 1.5; margin: 8px 0; cursor: pointer; overflow-wrap: anywhere; }
 .check-label > input:is([type="checkbox"],[type="radio"]) { display: inline-block; box-sizing: border-box; width: 19px; height: 19px; min-width: 19px; min-height: 19px; max-width: 19px; max-height: 19px; margin: 1px 0 0; padding: 0; flex: 0 0 19px; accent-color: var(--green); }
 .check-label .subtle { font-size: 12px; }
+.check-label-copy { display: block; min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.check-label-copy .subtle { display: block; }
 .check-label strong { font-weight: 550; }
 .purchase-bar { display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 12px; margin-top: 25px; }
 .quantity { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 5px; min-height: 44px; width: 105px; }
