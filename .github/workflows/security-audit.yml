@@ -1,0 +1,46 @@
+name: Cake Galaxy dependency security audit
+
+on:
+  push:
+    branches: ["security/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Production dependency vulnerability audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --json > dependency-audit.json
+          status=$?
+          set -e
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const data=JSON.parse(fs.readFileSync("dependency-audit.json","utf8"));
+          if (data.error) {
+            console.error("npm audit unable to evaluate dependency advisories:",data.error.code||"unknown");
+            process.exit(2);
+          }
+          const counts=data.metadata?.vulnerabilities||{};
+          console.log("Production dependency vulnerability counts:", JSON.stringify(counts));
+          for (const [name,v] of Object.entries(data.vulnerabilities||{})) {
+            if (["moderate","high","critical"].includes(v.severity)) {
+              console.log(JSON.stringify({package:name,severity:v.severity,isDirect:v.isDirect,fixAvailable:v.fixAvailable||false}));
+            }
+          }
+          if ((counts.high||0)+(counts.critical||0)>0)process.exit(1);
+          NODE
