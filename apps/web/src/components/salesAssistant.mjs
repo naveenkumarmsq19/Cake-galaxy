@@ -49,7 +49,7 @@ export function productReply(product,options={}){
  const weights=product.unit==="kg"?product.weights.filter(w=>approvedWeightsKg.includes(w)):product.weights;
  const size=options.size;
  if(size==null)return {text:`I found ${product.name}. Which size would you like? Available sizes: ${weights.map(w=>w+(product.unit==="kg"?" kg":product.unit==="pieces"?" pieces":"")).join(", ")}.`,productId:product.id,sizes:weights};
- if(!weights.includes(size))return {text:`That size is not available for ${product.name}. Please select a listed size.`,productId:product.id,sizes:product.weights};
+ if(!weights.includes(size))return {text:`That size is not available for ${product.name}. Please select a listed size.`,productId:product.id,sizes:weights};
  if(product.photo)return {text:`${product.name} requires a photo upload. Please open its product page to complete the design.`,productId:product.id,link:"/product?id="+encodeURIComponent(product.id)};
  if(options.eggless===true && product.eggless===false)return {text:`Eggless is not currently available for ${product.name}. Please choose the standard option or another cake.`,productId:product.id,link:"/product?id="+encodeURIComponent(product.id)};
  const item={productId:product.id,size,quantity:Math.max(1,Math.min(20,Number(options.quantity)||1)),flavour:product.flavour||"",eggless:options.eggless===true,addons:[]};
