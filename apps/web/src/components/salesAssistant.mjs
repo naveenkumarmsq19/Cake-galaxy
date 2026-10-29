@@ -7,7 +7,8 @@ export function cleanWords(value){return String(value||"").toLowerCase().replace
 function distance(a,b){if(Math.abs(a.length-b.length)>2)return 3;const r=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=r[0];r[0]=i;for(let j=1;j<=b.length;j++){const save=r[j];r[j]=Math.min(r[j]+1,r[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=save;}}return r[b.length];}
 function similar(a,b){return a===b||(Math.min(a.length,b.length)>=5&&distance(a,b)<=(Math.max(a.length,b.length)>=9?2:1));}
 export function findProducts(query,catalog){
- const words=[...new Set(cleanWords(query).filter(x=>!IGNORED.has(x)&&!/^[0-9]+$/.test(x)))];
+ const withoutSize=String(query||"").replace(/\b\d+(?:\.\d+)?\s*(?:kg|kgs|kilograms?|kilo|g|gm|grams?)\b/gi," ");
+ const words=[...new Set(cleanWords(withoutSize).filter(x=>!IGNORED.has(x)&&!/^[0-9]+$/.test(x)))];
  if(!words.length)return [];
  return (Array.isArray(catalog)?catalog:[]).filter(p=>p&&p.id&&p.name&&Array.isArray(p.weights)&&p.weights.length).map(product=>{
  const pwords=[...new Set(cleanWords(product.name+" "+(product.flavour||"")))];
