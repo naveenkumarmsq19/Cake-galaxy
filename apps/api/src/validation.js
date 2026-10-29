@@ -1,4 +1,4 @@
-import { addons, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
+import { addons, approvedWeightsKg, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 import { timingSafeEqual } from "node:crypto";
 
 export class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -48,7 +48,7 @@ export function deliveryLocation(value) {
 }
 
 export function priceItem(item, product) {
-  if (!product?.active || !product.weights.includes(Number(item.size)) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) throw new HttpError(400, "A cake in your bag is unavailable. Please review your bag.");
+  if (!product?.active || !product.weights.includes(Number(item.size)) || (product.unit === "kg" && !approvedWeightsKg.includes(Number(item.size))) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) throw new HttpError(400, "A cake in your bag is unavailable. Please review your bag.");
   if (item.eggless && !product.eggless) throw new HttpError(400, "Eggless is unavailable for this cake.");
   const requestedAddons = item.addons || [];
   if (!Array.isArray(requestedAddons) || requestedAddons.length > addons.length || new Set(requestedAddons).size !== requestedAddons.length || requestedAddons.some((id) => !addons.some((addon) => addon.id === id))) throw new HttpError(400, "An add-on in your bag is unavailable.");
