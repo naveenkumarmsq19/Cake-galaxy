@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {findProducts,parseOptions,productReply,localAnswer} from "../src/components/salesAssistant.mjs";
+import {findProducts,parseOptions,productReply,localAnswer,browsableCategories,productsInCategory,safeCakeImage} from "../src/components/salesAssistant.mjs";
 
 const catalog=[
  {id:"truffle",name:"Chocolate Truffle Cake",price:44900,weights:[0.5,1,1.5],unit:"kg",flavour:"Chocolate",photo:false},
@@ -70,4 +70,34 @@ test("assistant does not promise an unavailable eggless product",()=>{
  const result=productReply({...catalog[0],eggless:false},{size:1,eggless:true});
  assert.equal(result.item,undefined);
  assert.match(result.text,/Eggless is not currently available/);
+});
+
+test("unknown flavour asks for live cake categories instead of guessing",()=>{
+ const listed=[{...catalog[0],category:["Chocolate Flavours"],image:"/images/choco.jpg",images:["/images/new-choco.webp"]},{...catalog[1],category:["Velvet Flavours"],image:"/images/velvet.jpg"}];
+ const categories=[{name:"Chocolate Flavours",active:true,image:"/images/choco-category.jpg"},{name:"Velvet Flavours",active:true},{name:"Hidden",active:false}];
+ const result=localAnswer("I have no idea which flavour",listed,null,categories);
+ assert.equal(result.browseCategories.length,2);
+ assert.equal(result.browseCategories[0].image,"/images/choco-category.jpg");
+ assert.equal(result.browseCategories.some(c=>c.name==="Hidden"),false);
+ assert.deepEqual(productsInCategory(listed,"Chocolate Flavours").map(c=>c.id),["truffle"]);
+});
+test("browsing category then selecting a cake returns the existing size and cart flow",()=>{
+ const cake={...catalog[0],category:["Chocolate Flavours"],weights:[0.5,1,2,3,4,5]};
+ const result=productReply(productsInCategory([cake],"Chocolate Flavours")[0],{});
+ assert.deepEqual(result.sizes,[0.5,1,2,3,4,5]);
+ const selected=productReply(cake,{size:2,eggless:true});
+ assert.equal(selected.item.productId,"truffle");
+ assert.equal(selected.item.size,2);
+});
+test("unsupported 1.5kg, 2.5kg and sizes over 5kg never enter the cart",()=>{
+ const legacy={...catalog[0],weights:[0.5,1,1.5,2,2.5,3,4,5,10]};
+ const result=productReply(legacy,{size:1.5});
+ assert.equal(result.item,undefined);
+ assert.deepEqual(result.sizes,[0.5,1,2,3,4,5]);
+ assert.equal(productReply(legacy,{size:10}).item,undefined);
+});
+test("cake images use live galleries with a safe fallback for invalid URLs",()=>{
+ assert.equal(safeCakeImage("/api/product-images/ab123"),"/api/product-images/ab123");
+ assert.equal(safeCakeImage("https://ik.imagekit.io/cakes/a.webp"),"https://ik.imagekit.io/cakes/a.webp");
+ assert.equal(safeCakeImage("javascript:alert(1)"),"/images/celebration.jpg");
 });
