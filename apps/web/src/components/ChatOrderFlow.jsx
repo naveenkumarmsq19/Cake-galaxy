@@ -124,11 +124,11 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
    setAccepted(false);
    setStep("review");
  });
- function finishConfirmedOrder(order){
+ function finishConfirmedOrder(order,expectedReference){
    // Only return to chat after the existing backend confirms a COD order
    // or securely verifies an online payment. No AI output can create a receipt.
    const receipt=makeConfirmedChatReceipt({
-     order, expectedReference:order.reference, expectedMethod:method,
+     order, expectedReference, expectedMethod:method,
      expectedAmount:confirmedTotal.total, cart, catalog, address, delivery
    });
    setReceipt(order);
@@ -173,7 +173,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
        throw Error("Order status could not be confirmed. Check My Orders before trying again.");
      }
      if(data.order.reference!==data.reference)throw Error("Order reference could not be verified. Check My Orders.");
-     finishConfirmedOrder(data.order);
+     finishConfirmedOrder(data.order,data.reference);
      return;
    }
    if(!data.orderId||!freshConfig.keyId)throw Error("Payment could not be prepared. Check My Orders before trying again.");
@@ -181,7 +181,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
    const verified=await api("/checkout/verify",{method:"POST",body:{reference:data.reference,...payment}});
    if(verified.status!=="paid"||!verified.order)throw Error("Payment confirmation is pending. Please check My Orders.");
    if(verified.order.reference!==data.reference)throw Error("Payment order reference could not be verified. Check My Orders.");
-   finishConfirmedOrder(verified.order);
+   finishConfirmedOrder(verified.order,data.reference);
  });
 
  return <div className={styles.root} ref={flowRef} role="region" aria-label="Order through chat">
