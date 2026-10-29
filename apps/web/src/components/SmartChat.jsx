@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "./Storefront";
 import { localAnswer, parseOptions, productReply } from "./salesAssistant.mjs";
 import { isNearChatBottom } from "./chatScroll.mjs";
@@ -20,7 +20,7 @@ export default function SmartChat(){
  const pendingOptions=useRef({});
  const chatFeedRef=useRef(null);
  const keepAtBottomRef=useRef(true);
- useEffect(()=>{
+ useLayoutEffect(()=>{
    if(!open || !keepAtBottomRef.current)return;
    const feed=chatFeedRef.current;
    if(feed)feed.scrollTop=feed.scrollHeight;
