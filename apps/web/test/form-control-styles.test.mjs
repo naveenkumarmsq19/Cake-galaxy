@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
 const file=(path)=>readFileSync(new URL(path,import.meta.url),"utf8");
-const globalCss=file("../../app/globals.css");
-const adminCss=file("../../app/admin/style.css");
+const globalCss=file("../app/globals.css");
+const adminCss=file("../app/admin/style.css");
 const chatCss=file("../src/components/ChatOrderFlow.module.css");
 const checkout=file("../src/screens/Checkout.jsx");
 const product=file("../src/screens/Browse.jsx");
