@@ -195,4 +195,4 @@ export const approvedCakePrices = [
   }
 ];
 export const approvedCakeIds = approvedCakePrices.map(cake => cake.id);
-export const approvedWeightsKg = Array.from({ length: 40 }, (_, i) => (i + 1) / 2); // 0.5 to 20 kg
+export const approvedWeightsKg = Object.freeze([0.5, 1, 2, 3, 4, 5]); // Approved cake sizes, maximum 5 kg

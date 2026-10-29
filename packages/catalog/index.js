@@ -1,5 +1,6 @@
 export { menuSections, menuProducts, menuExtras } from "./menu.js";
 export { approvedCakePrices, approvedCakeIds, approvedWeightsKg } from "./approvedCakes.js";
+import { approvedWeightsKg } from "./approvedCakes.js";
 
 export const images = {
   banner: "/images/celebration-banner.webp",
@@ -51,7 +52,7 @@ export function egglessSurcharge(item, product = getProduct(item.productId)) {
 export const weightKey = (size) => "w_" + String(Number(size)).replace(".", "_");
 
 export function catalogueBasePrice(item, product = getProduct(item.productId)) {
-  if (!product || !product.weights?.includes(Number(item.size))) return 0;
+  if (!product || !product.weights?.includes(Number(item.size)) || (product.unit === "kg" && !approvedWeightsKg.includes(Number(item.size)))) return 0;
   const key = weightKey(item.size);
   const configured = product.variantPrices?.get?.(key) ?? product.variantPrices?.[key];
   if (Number.isSafeInteger(configured) && configured > 0) return configured;
@@ -60,7 +61,7 @@ export function catalogueBasePrice(item, product = getProduct(item.productId)) {
 }
 
 export function regularUnitPrice(item, product = getProduct(item.productId)) {
-  if (!product || !product.weights.includes(Number(item.size))) return 0;
+  if (!product || !product.weights.includes(Number(item.size)) || (product.unit === "kg" && !approvedWeightsKg.includes(Number(item.size)))) return 0;
   const base = catalogueBasePrice(item, product);
   const extras = addons.filter((addon) => (item.addons || []).includes(addon.id)).reduce((sum, addon) => sum + addon.price, 0);
   return base + egglessSurcharge(item, product) + extras;
@@ -68,7 +69,7 @@ export function regularUnitPrice(item, product = getProduct(item.productId)) {
 
 export function discountAmount(item, product = getProduct(item.productId)) {
   const size = Number(item?.size);
-  if (!product || product.unit !== "kg" || size < 1 || !product.weights.includes(size)) return 0;
+  if (!product || product.unit !== "kg" || size < 1 || !approvedWeightsKg.includes(size) || !product.weights.includes(size)) return 0;
   const base = catalogueBasePrice(item, product);
   // Promotion applies to the cake itself, not optional toppings or eggless surcharge.
   return Math.round(base * 0.10);

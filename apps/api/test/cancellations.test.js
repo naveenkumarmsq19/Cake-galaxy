@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCancellation, visibleCancellation, verifyRefund, reasons } from "../src/cancellations.js";
-import { products, egglessSurcharge, regularUnitPrice, discountAmount, unitPrice } from "@cake-galaxy/catalog";
+import { products, approvedWeightsKg, egglessSurcharge, regularUnitPrice, discountAmount, unitPrice } from "@cake-galaxy/catalog";
 
 test("Customer must choose a valid category and detailed cancellation reason", () => {
   assert.deepEqual(Object.keys(reasons), ["changed_mind", "ordered_by_mistake", "wrong_order", "delivery_issue", "other"]);
@@ -34,7 +34,7 @@ test("Validate Razorpay refund ID, payment ID, amount and status before recordin
 
 test("Eggless scales by ₹50 for each 500g and never receives cake-only percentage discount", () => {
   for (const p of products.filter(item=>item.unit==="kg" && item.eggless)) {
-    for (const weight of p.weights) {
+    for (const weight of p.weights.filter(w=>approvedWeightsKg.includes(w))) {
       const plain={size:weight,eggless:false,addons:[]};
       const eggless={size:weight,eggless:true,addons:[]};
       const fee=Math.round(weight/0.5)*5000;

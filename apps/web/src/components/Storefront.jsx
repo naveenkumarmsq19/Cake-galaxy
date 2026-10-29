@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
+import { approvedWeightsKg, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -111,7 +111,7 @@ export function StoreProvider({ children }) {
         setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active && data.products.some(product => product.category?.includes(item.name))) : []);
         setCatalogLoaded(true);
         const available = new Map(data.products.map((product) => [product.id, product]));
-        const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)));
+        const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)) && (available.get(item.productId)?.unit !== "kg" || approvedWeightsKg.includes(Number(item.size))));
         if (valid.length !== cartRef.current.length) {
           cartRef.current = valid;
           setCart(valid);
@@ -127,6 +127,8 @@ export function StoreProvider({ children }) {
     try { localStorage.setItem(basketKey, JSON.stringify(next)); } catch {}
   }
   function addItem(item) {
+    const product=catalog.find(p=>p.id===item.productId);
+    if(!product || !product.weights?.includes(Number(item.size)) || (product.unit==="kg"&&!approvedWeightsKg.includes(Number(item.size)))) return;
     saveCart([...cartRef.current, { ...item, id: crypto.randomUUID(), quantity: item.quantity || 1 }]);
   }
   function changeQuantity(id, delta) {

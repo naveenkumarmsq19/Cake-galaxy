@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { approvedWeightsKg } from "@cake-galaxy/catalog";
 import { rateLimit } from "express-rate-limit";
 import { createHash, randomBytes, scrypt as rawScrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -328,6 +329,7 @@ export function createAdminRouter() {
     const id = text(req.body?.id, 80);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new HttpError(400, "Use lowercase letters, numbers and dashes for product ID.");
     const changes = productChanges(req.body);
+    if (changes.unit === "kg" && changes.weights?.some(size => !approvedWeightsKg.includes(size))) throw new HttpError(400, "Cake sizes must be 0.5, 1, 2, 3, 4, or 5 kg.");
     await assignProductCategory(changes, req.body);
     if (!changes.name || !changes.flavour || !changes.category?.length || !changes.weights?.length || !changes.price || !changes.unit) throw new HttpError(400, "Add name, flavour, category, size, price and unit before saving.");
     const product = await Product.create({ ...changes, id, active: false, deletedAt: null });
@@ -342,6 +344,7 @@ export function createAdminRouter() {
     const targetProduct = await Product.findOne({ id: text(req.params.id, 80), deletedAt: null }).lean();
     if (!targetProduct) throw new HttpError(404, "Product not found.");
     const changes = productChanges(req.body);
+    if ((changes.unit || targetProduct.unit) === "kg" && (changes.weights || targetProduct.weights).some(size => !approvedWeightsKg.includes(size))) throw new HttpError(400, "Cake sizes must be 0.5, 1, 2, 3, 4, or 5 kg.");
     await assignProductCategory(changes, req.body, targetProduct);
     const product = await Product.findOneAndUpdate({ id: targetProduct.id, deletedAt: null }, { $set: changes }, { new: true, runValidators: true });
     if (!product) throw new HttpError(404, "Product not found.");

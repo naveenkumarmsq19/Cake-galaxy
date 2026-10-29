@@ -6,6 +6,7 @@ import { createApp } from "./app.js";
 import { Product, Branch, ServiceArea, AdminUser } from "./models.js";
 import { bootstrapSuperAdmin, ensureBaseServiceAreas } from "./bootstrap.js";
 import { applyApprovedLaunchCatalogue } from "./approvedCatalogue.js";
+import { applyCakeWeightLimit } from "./cakeWeightMigration.js";
 import { bootstrapCategories } from "./categoryService.js";
 import { paymentReadiness } from "./paymentReadiness.js";
 
@@ -32,6 +33,7 @@ async function start() {
   })));
   // User's explicitly approved 32 products are enabled once; all others remain in DB inactive.
   const launch = await applyApprovedLaunchCatalogue();
+  await applyCakeWeightLimit();
   if (!launch.alreadyApplied) process.stdout.write("Approved catalogue release: 32 half-kg-priced cakes enabled, all other catalogue entries disabled.\n");
   const remapped = await bootstrapCategories();
   process.stdout.write("Shop categories ready; automatically classified " + remapped + " product(s).\n");
