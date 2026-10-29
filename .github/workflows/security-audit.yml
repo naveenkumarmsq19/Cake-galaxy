@@ -20,7 +20,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm ci
+      - name: Isolated API security smoke tests and backend regression suite
+        run: npm run check -w @cake-galaxy/api
       - name: Production dependency vulnerability audit
         shell: bash
         run: |
