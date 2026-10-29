@@ -58,3 +58,10 @@ test("no direct order submission is ever produced by the parser",()=>{
  assert.equal(result.link,"/cart");
  assert.equal(result.item,undefined);
 });
+
+test("English number words remain valid after AI grammar normalization",()=>{
+ const opts=parseOptions("I would like a one-kilogram eggless chocolate truffle cake");
+ assert.equal(opts.size,1);
+ assert.equal(opts.eggless,true);
+ assert.equal(parseOptions("two cakes, 500 grams each").quantity,2);
+});
