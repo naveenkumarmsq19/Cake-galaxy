@@ -169,3 +169,44 @@
 .admin-quote-form input,.admin-quote-form textarea { border:1px solid #d4dfd5; background:white; border-radius:8px; padding:11px 12px; width:100%; color:var(--ink,#26382e); font:16px Arial,sans-serif; }
 .admin-quote-form textarea { resize:vertical; min-height:78px; }
 .admin-quote-panel .admin-ghost { margin-top:4px; }
+
+
+/* Product administration uses the same fixed-size checkbox semantics as the store. */
+.admin-checks { align-items: stretch; gap: 9px; }
+.admin-checks label {
+  display: inline-flex;
+  min-height: 44px;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 12px;
+  background: #f8fbf7;
+  border: 1px solid #dce7da;
+  border-radius: 9px;
+  color: #304d37;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-checks label:focus-within { outline: 2px solid #97b399; outline-offset: 2px; }
+.admin-checks label:has(input:disabled) { opacity: .65; cursor: not-allowed; }
+.admin-checks input[type="checkbox"] {
+  display: inline-block;
+  width: 19px !important;
+  height: 19px !important;
+  min-width: 19px !important;
+  min-height: 19px !important;
+  max-width: 19px !important;
+  max-height: 19px !important;
+  flex: 0 0 19px;
+  margin: 0 !important;
+  padding: 0 !important;
+  accent-color: #38533f;
+  cursor: inherit;
+}
+@media (max-width: 600px) {
+  .admin-checks { flex-direction: column; }
+  .admin-checks label { width: 100%; min-width: 0; }
+}
