@@ -1,4 +1,4 @@
-import { unitPrice, money } from "@cake-galaxy/catalog";
+import { approvedWeightsKg, unitPrice, money } from "@cake-galaxy/catalog";
 
 // Never use fuzzy matching or an LLM to set final checkout totals.
 const IGNORED=new Set("i want need please give me can you have do we a an the for my to of is are with and or this that one get buy order add cart bag cake cakes kg kilo kilogram eggless egless without egg half today tomorrow naliku naalaiku venum enaku ennaku bro hi hello dear sir madam birthday price cost how much what which any available show find options recommend suggest".split(" "));
@@ -6,11 +6,28 @@ const ALIAS={choclate:"chocolate",choclet:"chocolate",choco:"chocolate",choc:"ch
 export function cleanWords(value){return String(value||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean).flatMap(x=>(ALIAS[x]||x).split(" "));}
 function distance(a,b){if(Math.abs(a.length-b.length)>2)return 3;const r=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=r[0];r[0]=i;for(let j=1;j<=b.length;j++){const save=r[j];r[j]=Math.min(r[j]+1,r[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=save;}}return r[b.length];}
 function similar(a,b){return a===b||(Math.min(a.length,b.length)>=5&&distance(a,b)<=(Math.max(a.length,b.length)>=9?2:1));}
+export const isVisibleCake=(p)=>Boolean(p?.id && p?.name && Array.isArray(p.weights) && p.weights.some(w=>p.unit!=="kg"||approvedWeightsKg.includes(w)));
+export function browsableCategories(catalog,categories=[]){
+ const active=(Array.isArray(catalog)?catalog:[]).filter(isVisibleCake);
+ const names=new Set(active.flatMap(p=>Array.isArray(p.category)?p.category:[]));
+ const configured=(Array.isArray(categories)?categories:[]).filter(c=>c?.active!==false && names.has(c.name));
+ const choices=configured.length?configured.map(c=>({name:c.name,image:c.image||""})):Array.from(names).sort().map(name=>({name,image:""}));
+ return choices.map(c=>{
+   const first=active.find(p=>p.category?.includes(c.name));
+   return {name:c.name,image:c.image||first?.images?.[0]||first?.image||"",count:active.filter(p=>p.category?.includes(c.name)).length};
+ }).filter(c=>c.count>0);
+}
+export function productsInCategory(catalog,category){
+ return (Array.isArray(catalog)?catalog:[]).filter(p=>isVisibleCake(p)&&p.category?.includes(category)).sort((a,b)=>a.name.localeCompare(b.name));
+}
+export function safeCakeImage(image){
+ return typeof image==="string" && (/^https:\/\//i.test(image)||/^\/(?!\/)/.test(image)) ? image : "/images/celebration.jpg";
+}
 export function findProducts(query,catalog){
  const withoutSize=String(query||"").replace(/\b\d+(?:\.\d+)?\s*(?:kg|kgs|kilograms?|kilo|g|gm|grams?)\b/gi," ");
  const words=[...new Set(cleanWords(withoutSize).filter(x=>!IGNORED.has(x)&&!/^[0-9]+$/.test(x)))];
  if(!words.length)return [];
- return (Array.isArray(catalog)?catalog:[]).filter(p=>p&&p.id&&p.name&&Array.isArray(p.weights)&&p.weights.length).map(product=>{
+ return (Array.isArray(catalog)?catalog:[]).filter(isVisibleCake).map(product=>{
  const pwords=[...new Set(cleanWords(product.name+" "+(product.flavour||"")))];
  const matched=words.filter(word=>pwords.some(w=>similar(word,w))).length;
  const score=matched/words.length+(matched>1?0.15:0);
@@ -28,10 +45,11 @@ export function parseOptions(text){
  return {size:Number.isFinite(size)&&size>0?size:null,eggless,quantity:qty?Math.min(20,Number(qty[1])):1};
 }
 export function productReply(product,options={}){
- if(!product||!Array.isArray(product.weights))return {text:"Please choose a cake from our current catalogue."};
+ if(!isVisibleCake(product))return {text:"Please choose a cake from our current catalogue."};
+ const weights=product.unit==="kg"?product.weights.filter(w=>approvedWeightsKg.includes(w)):product.weights;
  const size=options.size;
- if(size==null)return {text:`I found ${product.name}. Which size would you like? Available sizes: ${product.weights.map(w=>w+(product.unit==="kg"?" kg":product.unit==="pieces"?" pieces":"")).join(", ")}.`,productId:product.id,sizes:product.weights};
- if(!product.weights.includes(size))return {text:`That size is not available for ${product.name}. Please select a listed size.`,productId:product.id,sizes:product.weights};
+ if(size==null)return {text:`I found ${product.name}. Which size would you like? Available sizes: ${weights.map(w=>w+(product.unit==="kg"?" kg":product.unit==="pieces"?" pieces":"")).join(", ")}.`,productId:product.id,sizes:weights};
+ if(!weights.includes(size))return {text:`That size is not available for ${product.name}. Please select a listed size.`,productId:product.id,sizes:product.weights};
  if(product.photo)return {text:`${product.name} requires a photo upload. Please open its product page to complete the design.`,productId:product.id,link:"/product?id="+encodeURIComponent(product.id)};
  if(options.eggless===true && product.eggless===false)return {text:`Eggless is not currently available for ${product.name}. Please choose the standard option or another cake.`,productId:product.id,link:"/product?id="+encodeURIComponent(product.id)};
  const item={productId:product.id,size,quantity:Math.max(1,Math.min(20,Number(options.quantity)||1)),flavour:product.flavour||"",eggless:options.eggless===true,addons:[]};
@@ -39,7 +57,7 @@ export function productReply(product,options={}){
  if(!Number.isSafeInteger(price)||price<=0)return {text:`Please open ${product.name} to verify its current price and options.`,productId:product.id,link:"/product?id="+encodeURIComponent(product.id)};
  return {text:`${product.name}, ${size}${product.unit==="kg"?" kg":product.unit==="pieces"?" pieces":""}${item.eggless?", eggless":""}: ${money(price)} per cake. ${item.quantity>1?`Quantity: ${item.quantity}. `:""}Delivery and checkout charges are confirmed later. Would you like to add it to your bag?`,item,productId:product.id};
 }
-export function localAnswer(text,catalog,selected=null){
+export function localAnswer(text,catalog,selected=null,categories=[]){
  const message=String(text||"").trim().slice(0,500),q=message.toLowerCase();
  if(!message)return {text:"Please type your question."};
  if(/\b(refund|cancel|cancellation|return)\b/.test(q))return {text:"You can request a cancellation from My Orders. The store reviews eligibility; refunds are not automatic.",link:"/orders"};
@@ -48,6 +66,9 @@ export function localAnswer(text,catalog,selected=null){
  if(/\b(allerg|nut.free|dairy.free|gluten.free)\b/.test(q))return {text:"Please contact Cake Galaxy about allergies before ordering. Eggless does not mean dairy-free or nut-free.",link:"/help"};
  if(/\b(deliver|delivery|pincode|postal\s*code|ship)\b/.test(q))return {text:"Please enter your six-digit delivery pincode. Availability and charges will be checked before checkout.",askPincode:true};
  const opts=parseOptions(message),matches=findProducts(message,catalog);
+ if(/\b(?:not sure|not decided|don.?t know|do not know|confused|help me choose|browse|categories|category|no idea|what cakes|which cake)\b/i.test(message)){
+   return {text:"No problem! Please choose a cake category below. You can then explore photos and select your favourite.",browseCategories:browsableCategories(catalog,categories)};
+ }
  if(matches.length){
   if(matches[0].score>=0.88&&(matches.length===1||matches[0].score-matches[1].score>0.13))return productReply(matches[0].product,opts);
   return {text:"I found a few possible cakes. Please choose one:",choices:matches.map(x=>({id:x.product.id,name:x.product.name}))};
@@ -58,6 +79,6 @@ export function localAnswer(text,catalog,selected=null){
  }
  if(/^\s*(hi|hello|hey|good morning|good evening)[!. ]*$/i.test(message))return {text:"Hello! Welcome to Cake Galaxy. I can help you find a cake, check delivery, and prepare your order."};
  if(/\b(checkout|place\s*(an?\s*)?order|proceed\s*to\s*pay)\b/.test(q))return {text:"Please review your bag and complete the secure checkout. Phone verification, delivery details and payment are required.",link:"/cart"};
- if(/\b(price|cost|budget|how much|recommend|suggest|cakes|menu)\b/.test(q))return {text:"I can help you find a cake. What flavour, occasion, budget or size would you prefer?",link:"/shop"};
- return {text:"I can help with cake selection, prices, delivery, custom designs and orders. Please tell me what you need, or visit Help for other questions.",link:"/help"};
+ if(/\b(price|cost|budget|how much|recommend|suggest|cakes|menu)\b/.test(q))return {text:"I can help you choose. Select a category to browse our cakes with photos.",browseCategories:browsableCategories(catalog,categories)};
+ return {text:"I could not confidently identify that flavour. Please choose a category below to explore our available cakes.",browseCategories:browsableCategories(catalog,categories)};
 }
