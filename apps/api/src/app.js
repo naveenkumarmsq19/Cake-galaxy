@@ -8,7 +8,7 @@ import { pipeline } from "node:stream/promises";
 import mongoose from "mongoose";
 import multer from "multer";
 import sharp from "sharp";
-import { addons, designCakeTier, unitPrice } from "@cake-galaxy/catalog";
+import { addons, approvedWeightsKg, designCakeTier, unitPrice } from "@cake-galaxy/catalog";
 import { Customer, Session, LoginChallenge, Product, Category, ServiceArea, Branch, Upload, CustomRequest, Order } from "./models.js";
 import { createAdminRouter } from "./admin.js";
 import { createProductGalleryRouter } from "./gallery.js";
@@ -149,7 +149,9 @@ export function createApp() {
     // Until then existing, already stored product galleries remain unchanged.
     const enabled = new Set(categories.map(c => c.name));
     res.json({ products: catalog.map(p => ({
-      ...imageKitProduct(p), category: (p.category || []).filter(name => enabled.has(name))
+      ...imageKitProduct(p),
+      weights: p.unit === "kg" ? (p.weights || []).filter(weight => approvedWeightsKg.includes(weight)) : p.weights,
+      category: (p.category || []).filter(name => enabled.has(name))
     })), categories, addons });
   });
   app.get("/api/delivery", async (req, res) => {
@@ -240,7 +242,7 @@ export function createApp() {
     const weightKg = body.weightKg;
     const product = await Product.findOne({ id: productId, active: true, deletedAt: null });
     if (!product || product.unit !== "kg" || typeof weightKg !== "number" ||
-        !Number.isFinite(weightKg) || weightKg < 1 || !product.weights?.includes(weightKg)) {
+        !Number.isFinite(weightKg) || weightKg < 1 || !approvedWeightsKg.includes(weightKg) || !product.weights?.includes(weightKg)) {
       throw new HttpError(400, "Select an available cake flavour and weight.");
     }
     const flavourTier = designCakeTier(product);
