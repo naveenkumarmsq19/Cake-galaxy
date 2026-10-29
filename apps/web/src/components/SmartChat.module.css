@@ -40,7 +40,6 @@
 
 /* NC Bot: polished responsive shopping browser and easy-to-tap controls */
 .header{gap:10px;min-height:66px}
-.brandMark{width:38px;height:38px;flex-shrink:0;display:grid;place-items:center;border:1px solid #a1c3a2;border-radius:12px;background:#ffffff1e;color:#fff;font-weight:800;letter-spacing:-.04em}
 .brandCopy{min-width:0;flex:1}
 .brandCopy strong{font-size:15px;letter-spacing:.02em}
 .brandCopy small{font-size:11px;white-space:normal}
@@ -70,7 +69,8 @@
 .suggestions button{min-height:36px;font-weight:600}
 .form input{min-height:42px;font-size:16px}
 .form button{min-width:56px;min-height:42px;cursor:pointer}
-.note{flex-shrink:0;background:#f7faf6;border-top:1px solid #e4eee1;padding-top:8px}
+.note{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;background:#f7faf6;border-top:1px solid #e4eee1;padding:8px 14px 10px;line-height:1.35}
+.botCredit{display:block;font-size:9px;font-weight:400;letter-spacing:.015em;color:#839085}
 @media(max-width:600px){
  .launcher{bottom:70px;right:12px;min-height:46px}
  .panel{bottom:122px;right:8px;width:calc(100vw - 16px);height:min(600px,calc(100dvh - 144px));max-height:calc(100dvh - 144px);border-radius:16px}
