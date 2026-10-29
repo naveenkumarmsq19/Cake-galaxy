@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", weights: "0.5,1", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
+const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", weights: "0.5,1,2,3,4,5", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
 const entries = (value) => Object.entries(value?.toJSON?.() || value || {});
 const formatMap = (value, asRupees = false) => entries(value).map(([key, n]) =>
   key.replace(/^w_/, "").replace("_", ".") + ":" + (asRupees ? (Number(n) / 100).toFixed(2).replace(/\.00$/, "") : n)
