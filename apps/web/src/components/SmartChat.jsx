@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "./Storefront";
-import { localAnswer, parseOptions, productReply } from "./salesAssistant.mjs";
+import { browsableCategories, localAnswer, parseOptions, productReply, productsInCategory } from "./salesAssistant.mjs";
+import { CategoryPicker, CakeFlatList } from "./ChatCakeBrowser";
 import { scrollChatToBottom } from "./chatScroll.mjs";
 import styles from "./SmartChat.module.css";
 import ChatOrderFlow from "./ChatOrderFlow";
 
-const greeting={who:"bot",text:"Welcome to Cake Galaxy! Tell me the cake or occasion you have in mind. I can help you choose a cake, add it to your bag, and guide you through checkout."};
+const greeting={who:"bot",text:"Hello! I am NC Bot, your Cake Galaxy shopping assistant. If you are unsure what to choose, tap Browse Cakes to explore categories and cake photos."};
 const limited=(items)=>items.slice(-28);
 
 function OrderReceipt({receipt}){
@@ -33,7 +34,7 @@ function OrderReceipt({receipt}){
 
 
 export default function SmartChat(){
- const {catalog,catalogLoaded,checkDelivery,addItem,hydrated,cart}=useStore();
+ const {catalog,categories,catalogLoaded,checkDelivery,addItem,hydrated,cart}=useStore();
  const [ordering,setOrdering]=useState(false);
  const [open,setOpen]=useState(false);
  const [messages,setMessages]=useState([greeting]);
@@ -80,16 +81,29 @@ export default function SmartChat(){
        });
        if(response.ok){const data=await response.json();if(data?.available&&typeof data.english==="string"&&data.english.length<=500)understood=data.english;}
      }catch{/* Offline / free-tier quota fallback. */}
-     const answer=localAnswer(understood,catalog,selected);
+     const answer=localAnswer(understood,catalog,selected,categories);
      pendingOptions.current=parseOptions(understood);
      remember(answer);
    }catch{remember({text:"I could not verify that information right now. Please try again or use the regular checkout."});}
    finally{setWorking(false);}
  }
+ function browseCakes(){
+   if(!catalogLoaded){remember({text:"Our cake catalogue is still loading. Please try again."});return;}
+   pendingOptions.current={};
+   remember({text:"Please select a cake category to explore available cake designs.",browseCategories:browsableCategories(catalog,categories)});
+ }
+ function chooseCategory(name){
+   if(!browsableCategories(catalog,categories).some(c=>c.name===name))return;
+   const cakes=productsInCategory(catalog,name);
+   pendingOptions.current={};
+   append({who:"user",text:"Show me "+name+" cakes"});
+   remember(cakes.length?{text:"Here are the available "+name+" cakes. Select a cake to choose the size and continue your order.",categoryProducts:cakes}:{text:"No cakes are currently available in this category. Please choose another.",browseCategories:browsableCategories(catalog,categories)});
+ }
  function chooseProduct(id){
    const product=catalog.find(p=>p.id===id);
    if(!product)return;
    const opts=pendingOptions.current;
+   pendingOptions.current={};
    const result=productReply(product,opts);
    remember(result);
  }
