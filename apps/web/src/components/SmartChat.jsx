@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "./Storefront";
 import { localAnswer, parseOptions, productReply } from "./salesAssistant.mjs";
+import { isNearChatBottom } from "./chatScroll.mjs";
 import styles from "./SmartChat.module.css";
 
 const greeting={who:"bot",text:"Welcome to Cake Galaxy! Tell me the cake or occasion you have in mind. I can help you choose a cake, add it to your bag, and guide you through checkout."};
@@ -17,6 +18,17 @@ export default function SmartChat(){
  const [working,setWorking]=useState(false);
  const [selected,setSelected]=useState(null);
  const pendingOptions=useRef({});
+ const chatFeedRef=useRef(null);
+ const keepAtBottomRef=useRef(true);
+ useEffect(()=>{
+   if(!open || !keepAtBottomRef.current)return;
+   const feed=chatFeedRef.current;
+   if(feed)feed.scrollTop=feed.scrollHeight;
+ },[open,messages,working]);
+ function handleChatScroll(){
+   const feed=chatFeedRef.current;
+   if(feed)keepAtBottomRef.current=isNearChatBottom(feed);
+ }
  const append=(...items)=>setMessages(prev=>limited([...prev,...items]));
  const remember=(result)=>{
    if(result?.productId) setSelected(prev=>({productId:result.productId,size:result.item?.size??prev?.size??null,eggless:result.item?.eggless??prev?.eggless??false}));
@@ -25,6 +37,7 @@ export default function SmartChat(){
  async function send(raw){
    const message=String(raw||"").trim();
    if(!message||working||!hydrated)return;
+   keepAtBottomRef.current=true;
    setInput("");setWorking(true);
    append({who:"user",text:message});
    try {
@@ -52,6 +65,7 @@ export default function SmartChat(){
    finally{setWorking(false);}
  }
  function chooseProduct(id){
+   keepAtBottomRef.current=true;
    const product=catalog.find(p=>p.id===id);
    if(!product)return;
    const opts=pendingOptions.current;
@@ -59,22 +73,24 @@ export default function SmartChat(){
    remember(result);
  }
  function chooseSize(productId,size){
+   keepAtBottomRef.current=true;
    const product=catalog.find(p=>p.id===productId);
    if(!product)return;
    const result=productReply(product,{size,eggless:selected?.eggless||false,quantity:pendingOptions.current.quantity||1});
    remember(result);
  }
  function addToBag(item){
+   keepAtBottomRef.current=true;
    const product=catalog.find(p=>p.id===item?.productId);
    if(!product||!product.weights.includes(item.size)||product.photo)return;
    addItem(item);
    append({who:"bot",text:`${product.name} has been added to your bag. Review your delivery details and complete the order through secure checkout.`,link:"/cart"});
  }
  return <>
-   <button type="button" className={styles.launcher} onClick={()=>setOpen(value=>!value)} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
+   <button type="button" className={styles.launcher} onClick={()=>{if(!open)keepAtBottomRef.current=true;setOpen(value=>!value);}} aria-label={open?"Close Cake Galaxy assistant":"Open Cake Galaxy assistant"} aria-expanded={open}> {open?"×":"Chat with us"} </button>
    {open&&<aside className={styles.panel} role="region" aria-label="Cake Galaxy shopping assistant">
      <header className={styles.header}><div><strong>Cake Galaxy Assistant</strong><small>Ask a question or get help ordering</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
-     <div className={styles.feed} aria-live="polite" aria-relevant="additions">
+     <div ref={chatFeedRef} onScroll={handleChatScroll} className={styles.feed} aria-live="polite" aria-relevant="additions">
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
           <p>{m.text}</p>
           {Array.isArray(m.choices)&&m.choices.map(c=><button className={styles.choice} type="button" key={c.id} disabled={working} onClick={()=>chooseProduct(c.id)}>{c.name}</button>)}
