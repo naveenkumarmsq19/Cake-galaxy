@@ -8,6 +8,7 @@ import { useStore } from "./Storefront";
 import { addCalendarDays, availableDeliverySlots, firstAvailableDate, indiaNow, isBookableDate } from "./deliverySchedule";
 import { calculateChatTotal, makeChatOrderPayload, makeConfirmedChatReceipt, methodsAvailable, phoneValid, pinValid, validateChatCart, validateChatDetails } from "./chatCheckout.mjs";
 import styles from "./ChatOrderFlow.module.css";
+import CakeLoader from "./CakeLoader";
 import { checkoutPaymentDescriptions, checkoutSubmitState } from "./chatCheckoutUi.mjs";
 
 const initialAddress={name:"",phone:"",line1:"",line2:"",city:"Bengaluru",whatsapp:false};
@@ -189,7 +190,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
  return <div className={styles.root} ref={flowRef} role="region" aria-label="Order through chat">
    <div className={styles.top}><strong>Order through Chat</strong><button type="button" onClick={onClose} disabled={busy} aria-label="Return to chat">×</button></div>
    <div className={styles.progress}>Step {stepNumber} of 5 — {step==="complete"?"Order result":step==="verify"?"Phone verification":step==="review"?"Order review":step==="pincode"?"Delivery area":step==="delivery"?"Date and time":"Recipient details"}</div>
-   {!hydrated&&<p>Preparing your bag…</p>}
+   {!hydrated&&<CakeLoader size="small" label="Preparing your bag…" />}
    {hydrated&&step!=="complete"&&<div className={styles.summary}><strong>Your bag</strong>{cart.length?cart.map(item=>{
      const product=catalog.find(p=>p.id===item.productId);
      return <span key={item.id}>{product?.name||"Cake"} · {item.size} {product?.unit==="kg"?"kg":product?.unit||""} × {item.quantity}</span>;
@@ -298,7 +299,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
      <button className={styles.secondaryButton} type="button" onClick={onClose}>Return to chat</button>
    </section>}
    {error&&<p className={styles.error} role="alert">{error}</p>}
-   {busy&&<p className={styles.small} role="status">Checking with Cake Galaxy…</p>}
+   {busy&&<CakeLoader size="small" label={step==="review"?"Processing your Cake Galaxy order…":"Checking with Cake Galaxy…"} />}
    {step!=="complete"&&step!=="pincode"&&<div className={styles.back}><button type="button" disabled={busy} onClick={()=>{
      setError("");attempt.current=null;setAccepted(false);
      setStep(step==="delivery"?"pincode":step==="verify"?"delivery":step==="address"?"verify":"address");
