@@ -6,9 +6,10 @@ import { buildBorzoRequest, bookBorzoForOrder, handleBorzoCallback, verifyBorzoS
 const env = {
   BORZO_ENABLED: "true", BORZO_ENV: "test", BORZO_API_TOKEN: "private-test-token",
   BORZO_PICKUP_PHONE: "9876543210", BORZO_PAYMENT_METHOD: "balance",
-  BORZO_MAX_COST_PAISE: "15000", BORZO_COD_ENABLED: "true"
+  BORZO_MAX_COST_PAISE: "15000", BORZO_COD_ENABLED: "true",
+  BORZO_APPROVED_BRANCH_CODES: "BR99"
 };
-const branch = { _id: "branch1", name: "Cake Galaxy", address: "Nagarbhavi Main Road, Bengaluru, Karnataka 560072" };
+const branch = { _id: "branch1", code: "BR99", name: "Cake Galaxy", address: "Nagarbhavi Main Road, Bengaluru, Karnataka 560072" };
 const date = "2026-11-10";
 const now = new Date("2026-11-09T10:00:00+05:30");
 const order = () => ({
@@ -30,6 +31,7 @@ test("maps the Cake Galaxy branch and scheduled customer slot into valid Borzo p
   assert.equal(request.points[0].required_start_datetime, "2026-11-10T11:30:00+05:30");
   assert.equal(request.points[1].required_finish_datetime, "2026-11-10T16:00:00+05:30");
   assert.equal(request.total_weight_kg, 1);
+  assert.throws(() => buildBorzoRequest(order(), branch, { ...env, BORZO_APPROVED_BRANCH_CODES: "BR01" }, now), /not approved/);
   assert.equal(request.points[1].taking_amount, undefined);
 });
 
