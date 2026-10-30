@@ -753,3 +753,12 @@ input::placeholder,textarea::placeholder { color: #90968e; }
  .checkout-terms { padding: 11px; }
  .checkout-policy-links { padding-left: 30px; }
 }
+
+/* Loader overlays sit above map tiles only while the map/location service is busy. */
+.cake-map-loading-wrap { position:relative; min-width:0; }
+.cake-map-loading-overlay, .cake-map-location-overlay {
+  position:absolute; inset:0; z-index:500; display:flex; align-items:center; justify-content:center;
+  border-radius:10px; background:rgba(248,251,247,.93); pointer-events:none;
+}
+.cake-map-location-overlay { background:rgba(248,251,247,.72); }
+.cake-map-loading-overlay [data-cake-loader], .cake-map-location-overlay [data-cake-loader] { width:100%; max-width:220px; }
