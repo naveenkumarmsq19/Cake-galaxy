@@ -37,7 +37,7 @@ test("loader is a reusable accessible status with all three responsive sizes", (
 
 test("route-level loading and suspense fallbacks use branded page loader", () => {
   assert.match(read("../app/loading.jsx"), /<CakeLoader fullScreen size="large"/);
-  for (const path of ["shop", "product", "confirmation", "login"]) {
+  for (const path of ["shop", "product", "confirmation", "login", "policy"]) {
     assert.match(read("../app/" + path + "/page.jsx"), /fallback=\{<CakeLoader size="large" fullScreen/);
   }
 });
