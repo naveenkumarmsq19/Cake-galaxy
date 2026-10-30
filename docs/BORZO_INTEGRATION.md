@@ -12,9 +12,16 @@ A customer placing a COD order or paying online does NOT book a courier.
 1. Rotate the token if it has appeared in screenshots or public chat; copy the **new**
    test API token from the Borzo test cabinet to your **backend-only** env.
 2. Configure the **actual pickup branch** in Cake Galaxy Admin > Branches.
-   The current seed examples are Peenya (BR01) and Nagasandra (BR02); **do not**
-   assume they are the correct Cake Galaxy Nagarbhavi pickup location.
-   Choose the correct active branch and confirm its street address and service-area mapping.
+   A **new, inactive** `BR03` pickup branch is seeded from the merchant-provided address:
+   `No 1, Cake Galaxy, Nagarabhavi Main Rd, opposite Bank of Baroda, Govindaraja Nagar Ward, Mudalapalya, Nagarbhavi, Bengaluru, Karnataka 560072`.
+   **Confirm the building number with the store before enabling:** the Borzo
+   address autocomplete screenshot starts `88, Nagarabhavi Main Rd`, whereas
+   the merchant-provided shop address starts `No 1`. Choose the correct
+   actual doorway / map pin rather than assuming they mean the same entrance.
+   Verify branch address then activate BR03 explicitly in Admin > Branches,
+   and map the delivery service areas to BR03 in Admin > Coverage. The seed
+   intentionally never rewrites existing service area assignments.
+   Do not approve BR01 Peenya or BR02 Nagasandra as the Cake Galaxy pickup.
 3. Add these variables to Render backend secrets:
 
    ```env
@@ -23,7 +30,7 @@ A customer placing a COD order or paying online does NOT book a courier.
    BORZO_API_TOKEN=<rotated-test-token>
    BORZO_CALLBACK_SECRET=<secret-from-borzo-cabinet>
    BORZO_PICKUP_PHONE=<your-real-10-digit-pickup-phone>
-   BORZO_APPROVED_BRANCH_CODES=<verified-code-from-branch-record>
+   BORZO_APPROVED_BRANCH_CODES=BR03
    BORZO_PAYMENT_METHOD=balance
    BORZO_MAX_COST_PAISE=15000
    BORZO_COD_ENABLED=false
