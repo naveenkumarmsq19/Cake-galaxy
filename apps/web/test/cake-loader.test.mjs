@@ -13,6 +13,8 @@ const chatOrder = read("../src/components/ChatOrderFlow.jsx");
 const admin = read("../src/screens/AdminPanel.jsx");
 const phone = read("../src/components/PhoneVerification.jsx");
 const map = read("../src/components/MapPinPicker.jsx");
+const store = read("../src/components/Storefront.jsx");
+const menu = read("../src/screens/FullMenu.jsx");
 
 test("cake loader uses a transparent animated asset, no external network or JS timer", () => {
   assert.match(art, /<svg[^>]*viewBox="0 0 320 320"/);
@@ -69,4 +71,12 @@ test("checkout and admin show progress without removing forms while posting", ()
   assert.match(admin, /busy && <div className="admin-action-loader"><CakeLoader size="small"/);
   assert.match(map, /cake-map-loading-overlay/);
   assert.match(map, /cake-map-location-overlay/);
+});
+
+test("menu and account view wait for required async state before rendering empty results", () => {
+  assert.match(menu, /if \(!catalogLoaded\) return <CakeLoader size="large" fullScreen/);
+  assert.match(store, /const \[sessionLoaded, setSessionLoaded\] = useState\(false\)/);
+  assert.match(store, /finally\(\(\) => setSessionLoaded\(true\)\)/);
+  assert.match(screens, /if \(!sessionLoaded\) return <CakeLoader size="large" fullScreen label="Checking your account/);
+  assert.match(screens, /if \(!hydrated \|\| !catalogLoaded/);
 });
