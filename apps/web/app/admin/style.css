@@ -210,3 +210,8 @@
   .admin-checks { flex-direction: column; }
   .admin-checks label { width: 100%; min-width: 0; }
 }
+
+/* Non-blocking operation progress, separate from full-screen first load. */
+.admin-action-loader { width:100%; display:flex; justify-content:center; align-items:center; padding:5px 0 10px; }
+.admin-action-loader [data-cake-loader] { max-width:250px; }
+.admin-loading [data-cake-loader] { width:100%; }
