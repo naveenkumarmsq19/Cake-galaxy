@@ -9,6 +9,7 @@ import { HttpError, text } from "./validation.js";
 import { registerAdminGalleryRoutes } from "./gallery.js";
 import { suggestCategory, categorySlug, syncAutoCategories } from "./categoryService.js";
 import { registerCancellationAdminRoutes, visibleCancellation } from "./cancellations.js";
+import { bookBorzoForOrder } from "./borzo.js";
 
 const scrypt = promisify(rawScrypt);
 const cookieName = "cg_admin_session";
@@ -34,7 +35,7 @@ const emailAddress = (value) => {
   return result;
 };
 const visibleUser = (user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.role, branchId: user.branchId ? String(user.branchId) : null, active: user.active });
-const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), codCollectedAt: order.codCollectedAt || null, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
+const visibleOrder = (order) => ({ reference: order.reference, branchId: String(order.branchId || ""), customerPhone: order.customerPhone, sender: order.sender, items: order.items, address: order.address, delivery: order.delivery, amount: order.amount, subtotal: order.subtotal, deliveryFee: order.deliveryFee, tax: order.tax, status: order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), codCollectedAt: order.codCollectedAt || null, testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), borzo: order.borzo ? { state: order.borzo.state, status: order.borzo.status, deliveryStatus: order.borzo.deliveryStatus, orderId: order.borzo.orderId, quotePaise: order.borzo.quotePaise, costPaise: order.borzo.costPaise, trackingUrl: order.borzo.trackingUrl, error: order.borzo.error, environment: order.borzo.environment } : null, assignmentHistory: order.assignmentHistory, createdAt: order.createdAt, updatedAt: order.updatedAt });
 const scoped = (req) => req.admin.role === "super_admin" ? {} : { branchId: req.admin.branchId };
 
 export async function hashPassword(password) {
@@ -219,7 +220,8 @@ export function createAdminRouter() {
     const allowedPayment = next === "delivered" ? ["paid", "test_cod"] : ["paid", "test_cod", "cod_pending"];
     const order = await Order.findOneAndUpdate({ ...filter, paymentStatus: { $in: allowedPayment } }, { $set: { status: next } }, { new: true });
     if (!order) throw new HttpError(409, "Order not found, payment is uncollected, or its status has changed.");
-    res.json({ order: visibleOrder(order) });
+    const current = next === "preparing" ? await bookBorzoForOrder(order) : order;
+    res.json({ order: visibleOrder(current) });
   });
   registerCancellationAdminRoutes(router, requireSuper, visibleOrder);
   router.post("/orders/:reference/cancellation-rejection", requireSuper, async (req, res) => {
@@ -237,6 +239,7 @@ export function createAdminRouter() {
     const current = await Order.findOne({ reference }).lean();
     if (!current) throw new HttpError(404, "Order not found.");
     if (["delivered", "cancelled"].includes(current.status) || ["requested", "approved"].includes(current.cancellation?.status)) throw new HttpError(409, "Completed or cancellation-requested orders cannot be reassigned.");
+    if (["booking", "booked", "needs_review"].includes(current.borzo?.state)) throw new HttpError(409, "Cancel or reconcile the Borzo delivery before changing its pickup branch.");
     if (String(current.branchId) === String(target._id)) throw new HttpError(409, "Order is already assigned to that branch.");
     const order = await Order.findOneAndUpdate({ _id: current._id, branchId: current.branchId, status: current.status, "cancellation.status": { $nin: ["requested", "approved"] } }, { $set: { branchId: target._id }, $push: { assignmentHistory: { from: current.branchId, to: target._id, by: req.admin._id, reason, at: new Date() } } }, { new: true });
     if (!order) throw new HttpError(409, "Order changed. Reload and try again.");
