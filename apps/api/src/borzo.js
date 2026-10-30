@@ -35,8 +35,10 @@ const amountPaise = (value) => {
 export function buildBorzoRequest(order, branch, env = process.env, now = new Date()) {
   if (!order || !branch?.address || !order.address?.line1 || !order.address?.pincode)
     throw new BorzoError("Pickup branch or delivery address is incomplete.");
-  if (order.testOrder && env.BORZO_ALLOW_TEST_ORDERS !== "true")
-    throw new BorzoError("Test orders are not enabled for Borzo.");
+  if (order.testOrder && (env.BORZO_ALLOW_TEST_ORDERS !== "true" || env.BORZO_ENV !== "test"))
+    throw new BorzoError("Test orders are permitted only in the Borzo test environment.");
+  const allowed = (env.BORZO_APPROVED_BRANCH_CODES || "").split(",").map((code) => code.trim()).filter(Boolean);
+  if (!allowed.includes(branch.code)) throw new BorzoError("Pickup branch is not approved for Borzo; verify its physical address first.");
   if (!["paid", "cod_pending", "test_cod"].includes(order.paymentStatus))
     throw new BorzoError("Order payment has not been confirmed.");
   const isCod = order.paymentMethod === "cod" || order.paymentStatus === "cod_pending";
@@ -107,7 +109,7 @@ export async function bookBorzoForOrder(acceptedOrder, {
   OrderModel = Order, BranchModel = Branch, env = process.env,
   fetchImpl = fetch, now = new Date()
 } = {}) {
-  if (!borzoEnabled(env) || (acceptedOrder.testOrder && env.BORZO_ALLOW_TEST_ORDERS !== "true")) return acceptedOrder;
+  if (!borzoEnabled(env) || (acceptedOrder.testOrder && (env.BORZO_ALLOW_TEST_ORDERS !== "true" || env.BORZO_ENV !== "test"))) return acceptedOrder;
   // One atomic claim per order. Never expire this lock or blindly retry create-order:
   // a timeout can mean that Borzo created the delivery but we did not receive its ID.
   const claimed = await OrderModel.findOneAndUpdate({
