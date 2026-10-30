@@ -23,6 +23,7 @@ export function StoreProvider({ children }) {
   const [cart, setCart] = useState([]);
   const cartRef = useRef([]);
   const [hydrated, setHydrated] = useState(false);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [session, setSession] = useState({ authenticated: false, phone: "", csrfToken: "" });
   const [pincode, setPincode] = useState("");
   const [quote, setQuote] = useState(null);
@@ -104,7 +105,7 @@ export function StoreProvider({ children }) {
       }
     } catch { /* Checkout details can be entered again. */ }
     setHydrated(true);
-    refreshSession().catch(() => {});
+    refreshSession().catch(() => {}).finally(() => setSessionLoaded(true));
     api("/catalog", { skipCsrf: true }).then((data) => {
       if (Array.isArray(data.products)) {
         setCatalog(data.products);
@@ -155,7 +156,7 @@ export function StoreProvider({ children }) {
   const discountTotal = cart.reduce((sum, item) => sum + discountAmount(item, catalog.find((p) => p.id === item.productId)) * item.quantity, 0);
   const subtotal = subtotalBeforeDiscount - discountTotal;
 
-  return <StoreContext.Provider value={{ api, checkDelivery, catalog, categories, catalogLoaded, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
+  return <StoreContext.Provider value={{ api, checkDelivery, catalog, categories, catalogLoaded, cart, count, subtotal, subtotalBeforeDiscount, discountTotal, hydrated, sessionLoaded, session, setSession, refreshSession, pincode, setPincode, quote, setQuote, address, setAddress, sender, setSender, delivery, setDelivery, receipt, setReceipt, addItem, changeQuantity, removeItem, clearCart, saveCheckoutDetails }}>
     {children}
   </StoreContext.Provider>;
 }
