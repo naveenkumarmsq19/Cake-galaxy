@@ -105,11 +105,13 @@ const orderSchema = new mongoose.Schema({
   assignmentHistory: [mongoose.Schema.Types.Mixed],
   whatsappConsent: Boolean,
   notificationStatus: { type: String, default: "pending" },
-  cancellation: mongoose.Schema.Types.Mixed
+  cancellation: mongoose.Schema.Types.Mixed,
+  borzo: mongoose.Schema.Types.Mixed
 }, options);
 orderSchema.index({ customerPhone: 1, idempotencyKey: 1 }, { unique: true });
 orderSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 orderSchema.index({ razorpayPaymentId: 1 }, { unique: true, sparse: true });
+orderSchema.index({ "borzo.orderId": 1 }, { unique: true, sparse: true });
 
 export const Customer = mongoose.model("Customer", customerSchema);
 export const Session = mongoose.model("Session", sessionSchema);
