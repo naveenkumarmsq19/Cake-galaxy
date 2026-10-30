@@ -41,7 +41,8 @@ async function start() {
   const initialBranches = [
     { code: "BR01", name: "Peenya", address: "Laggere Main Rd, Preethi Nagar, MEI Colony, Phase 3, Peenya, Bengaluru, Karnataka 560058", basePincode: "560058" },
     { code: "BR02", name: "Nagasandra", address: "1st Main Road, Chikkabidrikallu, Nagasandra, near Government School, Bengaluru, Karnataka 560073", basePincode: "560073" },
-    // Verified merchant-supplied Cake Galaxy pickup address. Seed inactive; activation and
+    // Merchant-supplied Cake Galaxy pickup address (unit number needs on-site confirmation).
+    // Seed inactive; activation and
     // service-area reassignment remain explicit admin decisions.
     { code: "BR03", name: "Cake Galaxy – Nagarbhavi", address: "No 1, Cake Galaxy, Nagarabhavi Main Rd, opposite Bank of Baroda, Govindaraja Nagar Ward, Mudalapalya, Nagarbhavi, Bengaluru, Karnataka 560072", basePincode: "560072" }
   ];
