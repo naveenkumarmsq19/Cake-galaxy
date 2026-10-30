@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, unitPrice } from "@cake-galaxy/catalog";
 import { useStore } from "../components/Storefront";
+import CakeLoader from "../components/CakeLoader";
 
 function slug(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
 function quotedPrice(product, weight) {
@@ -27,6 +28,7 @@ export default function FullMenu() {
     })).filter(group=>group.items.length);
   },[catalog,q]);
   const count=sections.reduce((sum,group)=>sum+group.items.length,0);
+  if (!catalogLoaded) return <CakeLoader size="large" fullScreen label="Loading Cake Galaxy menu…" />;
   return <div className="wrap page full-menu-page">
     <div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Our Menu</div>
     <header className="menu-intro">
