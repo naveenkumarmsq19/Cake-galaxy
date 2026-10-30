@@ -344,3 +344,6 @@
 @media (prefers-reduced-motion: reduce) {
   .form button, .orderButton, .linkButton, .paymentOption { transition: none; }
 }
+
+/* Never let chat checkout progress art expand the modal or shift payment controls. */
+.root [data-cake-loader="small"] { max-width:100%; margin:4px auto; }

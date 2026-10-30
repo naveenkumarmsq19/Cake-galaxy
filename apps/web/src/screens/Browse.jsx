@@ -8,15 +8,16 @@ import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
 import ProductGallery from "../components/ProductGallery";
+import CakeLoader from "../components/CakeLoader";
 
 export function Home() {
-  const { catalog, categories } = useStore();
+  const { catalog, categories, catalogLoaded } = useStore();
   return <div className="wrap page home-page">
     <section className="hero" aria-labelledby="hero-title"><img className="hero-art" src={images.banner} alt="Ivory celebration cake with delicate sage details" fetchPriority="high"/><div className="hero-copy"><span className="overline">CAKE GALAXY · BENGALURU</span><h1 id="hero-title">Cake Galaxy<br/><em>made for your moments.</em></h1><p>Order birthday cakes, photo cakes and personalised celebration cakes in Bengaluru.</p><Link className="button" href="/shop">Shop cakes <Icon name="arrow"/></Link> <Link className="button outline" href="/menu">View full menu</Link></div></section>
-    <section className="section occasions"><SectionHeading title="Explore cake categories."/><div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={"/shop?category=" + encodeURIComponent(category.name)} key={category.slug}><span className="category-image"><img src={cover?.images?.[0] || cover?.image || category.image || images.celebration} alt="" loading="lazy"/></span>{category.name}</Link>; })}</div></section>
-    <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more."/><div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
+    <section className="section occasions"><SectionHeading title="Explore cake categories." />{!catalogLoaded && <CakeLoader size="medium" label="Loading cake categories…" />}<div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={"/shop?category=" + encodeURIComponent(category.name)} key={category.slug}><span className="category-image"><img src={cover?.images?.[0] || cover?.image || category.image || images.celebration} alt="" loading="lazy"/></span>{category.name}</Link>; })}</div></section>
+    <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more." />{!catalogLoaded && <CakeLoader size="medium" label="Loading favourite cakes…" />}<div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     <section className="section custom-banner"><div className="custom-banner-copy"><span className="overline">MADE JUST FOR YOU</span><h2>Your idea.<br/><em>Our finishing touch.</em></h2><p>Share a design you love. We’ll make it your own.</p><Link href="/custom" className="button outline">Create your cake <Icon name="arrow"/></Link></div><img src={images.custom} alt="Two-tier celebration cake with seasonal berries" loading="lazy"/></section>
-    <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day."/><div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
+    <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day." />{!catalogLoaded && <CakeLoader size="medium" label="Loading more cakes…" />}<div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     <section className="section" aria-labelledby="cake-galaxy-location"><h2 id="cake-galaxy-location">Visit Cake Galaxy in Bengaluru</h2><p>Find Cake Galaxy at No. 1, Nagarabhavi Main Road, opposite Bank of Baroda, Mudalapalya, Bengaluru 560072. Check delivery availability for your pincode before ordering online.</p></section>
   </div>;
 }
@@ -24,7 +25,7 @@ export function Home() {
 export function Shop() {
   const router = useRouter();
   const params = useSearchParams();
-  const { catalog, categories } = useStore();
+  const { catalog, categories, catalogLoaded } = useStore();
   const category = params.get("category") || "All";
   const query = (params.get("q") || "").trim();
   const sort = params.get("sort") || "recommended";
@@ -34,6 +35,7 @@ export function Shop() {
   if (sort === "low") matches.sort((a, b) => startingPrice(a) - startingPrice(b));
   if (sort === "high") matches.sort((a, b) => startingPrice(b) - startingPrice(a));
   function navigate(next) { const search = new URLSearchParams({ category, q: query, sort, ...next }); router.push("/shop?" + search); }
+  if (!catalogLoaded) return <CakeLoader fullScreen size="large" label="Loading Cake Galaxy cakes…" />;
   return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Cakes</div><div className="page-heading"><div><h1>{query ? "Results for “" + query + "”" : category === "All" ? "Find your favourite cake" : category + " cakes"}</h1><p>A little personal touch makes all the difference.</p></div></div>
     <div className="catalog-toolbar"><span>{matches.length} cakes to explore</span><select className="mobile-filter" aria-label="Filter cakes" value={category} onChange={(event) => navigate({ category: event.target.value })}>{options.map((name) => <option key={name} value={name}>{name === "All" ? "All cakes" : name}</option>)}</select><select aria-label="Sort cakes" value={sort} onChange={(event) => navigate({ sort: event.target.value })}><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div>
     <div className="catalog"><aside className="filters"><div className="filter-group"><h2>Shop by category</h2>{options.map((name) => <Link key={name} href={"/shop?category=" + encodeURIComponent(name)} className={name === category ? "active" : ""}>{name === "All" ? "All cakes" : name}</Link>)}</div><Link href="/shop" className="text-link">Clear filters</Link></aside><div className="products">{matches.length ? matches.map((item) => <ProductCard key={item.id} product={item}/>) : <div className="empty-state"><h2>No cakes found</h2><p>Try another flavour or clear the selected filters.</p><Link className="button" href="/shop">View all cakes</Link></div>}</div></div>
@@ -43,7 +45,7 @@ export function Shop() {
 export function Product() {
   const params = useSearchParams();
   const router = useRouter();
-  const { catalog, session, api, addItem, pincode, checkDelivery } = useStore();
+  const { catalog, catalogLoaded, session, api, addItem, pincode, checkDelivery } = useStore();
   const product = catalog.find((item) => item.id === params.get("id"));
   const [quantity, setQuantity] = useState(1);
   const [size, setSize] = useState(product?.weights?.[0] ?? 0.5);
@@ -62,6 +64,7 @@ export function Product() {
     setSize(product.weights[0]); setFlavour(product.flavour || "");
     setEggless(false); setExtras([]); setMessage(""); setFile(null);
   }, [key]);
+  if (!catalogLoaded) return <CakeLoader fullScreen size="large" label="Preparing your cake…" />;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
   const related = catalog.filter(item => item.id !== product.id).map(item => ({
     item, score: (item.category || []).filter(value => (product.category || []).includes(value)).length * 10 +
@@ -100,7 +103,7 @@ export function Product() {
       {product.photo && !session.authenticated && <div className="field-group"><PhoneVerification phone={phone} onPhoneChange={setPhone}/></div>}
       <div className="field-group"><span className="field-label">Make it a little more special</span>{addons.map((addon) => <label key={addon.id} className="check-label"><input type="checkbox" checked={extras.includes(addon.id)} onChange={(event) => setExtras((items) => event.target.checked ? [...items, addon.id] : items.filter((id) => id !== addon.id))}/><span className="check-label-copy">{addon.name} <span className="subtle">+{money(addon.price)}</span></span></label>)}</div>
       <div className="field-group"><label htmlFor="product-pincode">Delivery pincode</label><input id="product-pincode" name="productPincode" inputMode="numeric" autoComplete="postal-code" pattern="[1-9][0-9]{5}" maxLength={6} value={deliveryPin} onChange={(event) => { setDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6)); setFeedback(""); }} placeholder="Enter 6-digit pincode" required/><p className="subtle">{/^[1-9][0-9]{5}$/.test(deliveryPin) ? "Delivery availability and charges are confirmed before payment." : "Enter a 6-digit pincode to continue."}</p></div>
-      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div><p className="form-message" role="status">{feedback}</p>
+      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div>{busy && <CakeLoader size="small" label="Checking delivery and preparing your bag…" />}<p className="form-message" role="status">{feedback}</p>
     </form></div></div>
     {related.length > 0 && <section className="section related-section" aria-labelledby="related-title">
       <div className="section-heading"><div><h2 id="related-title">You may also like</h2><p>More cakes to make your celebration special.</p></div></div>
@@ -216,7 +219,7 @@ export function Custom() {
             {available.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
           </select>
           {catalogLoaded && !available.length && <p className="subtle">No {tier} flavours in the currently approved price list. Select another category or add approved flavours in Admin.</p>}
-          {!catalogLoaded && <p className="subtle">Loading approved cake flavours...</p>}
+          {!catalogLoaded && <CakeLoader size="medium" label="Loading available flavours…" />}
         </div>
         {selected && <>
           <div className="field">
@@ -252,7 +255,7 @@ export function Custom() {
           <div className="field"><h3>Your contact number</h3>
             {session.authenticated && session.phone === customPhone ? <p className="verified-badge">+91 {session.phone} · Verified</p> : <PhoneVerification phone={customPhone} onPhoneChange={setCustomPhone}/>}
           </div>
-          <button className="button full" disabled={busy}>{busy ? "Submitting…" : "Request a design & quote"}</button>
+          <button className="button full" disabled={busy}>{busy ? "Submitting…" : "Request a design & quote"}</button>{busy && <CakeLoader size="small" label="Submitting your design…" />}
           <p className="subtle">We confirm the design and final price before payment. Submitting this form does not place a paid order.</p>
         </>}
         <p className="form-message" role="status">{feedback}</p>

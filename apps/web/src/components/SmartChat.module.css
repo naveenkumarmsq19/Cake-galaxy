@@ -82,3 +82,7 @@
 }
 @media(max-width:360px){.categoryGrid{grid-template-columns:1fr}.categoryTile img{width:56px}.sizeGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(prefers-reduced-motion:reduce){.launcher,.categoryTile,.cakeFlatItem,.sizePill{transition:none}}
+
+/* Small branded progress state remains centred inside the message feed. */
+.chatLoading { display:flex; width:100%; flex:0 0 auto; justify-content:center; align-items:center; padding:4px 0; }
+.chatLoading [data-cake-loader] { max-width:210px; }

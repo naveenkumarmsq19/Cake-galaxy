@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import CakeLoader from "./CakeLoader";
 
 // Leaflet 1.9.4 is loaded only on the address page, with the official SRI hashes.
 const leafletCss = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
@@ -127,8 +128,10 @@ export default function MapPinPicker({ value, onChange, onMapReady }) {
         {locating ? "Finding location…" : "📍 Use my location"}
       </button>
     </div>
-    <div className="cake-map-surface" ref={container} aria-label="Interactive delivery pin map" role="application"/>
-    {loading && <p className="subtle" role="status">Loading interactive map…</p>}
+    <div className="cake-map-loading-wrap"><div className="cake-map-surface" ref={container} aria-label="Interactive delivery pin map" role="application"/>
+      {loading && <div className="cake-map-loading-overlay"><CakeLoader size="medium" label="Loading delivery map…" /></div>}
+      {locating && <div className="cake-map-location-overlay"><CakeLoader size="small" label="Finding your location…" /></div>}
+    </div>
     {value ? <p className="cake-map-picked" role="status">📍 Pin selected: {Number(value.lat).toFixed(5)}, {Number(value.lng).toFixed(5)}. Double-check that this matches the written address and pincode.</p>
       : !loading && !error && <p className="subtle">No pin selected yet. Tap the map to mark the delivery point.</p>}
     {error && <p className="cake-map-error" role="status">{error} Manual address entry remains available if maps cannot load.</p>}
