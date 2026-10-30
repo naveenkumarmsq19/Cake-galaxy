@@ -60,6 +60,8 @@ A customer placing a COD order or paying online does NOT book a courier.
 
 ## How it works
 
+* **Borzo cake restriction:** the India booking form states "We deliver cakes up to 1 kg only." The general 2-wheeler parcel limit (20 kg) is **not** a cake allowance. Auto-booking is therefore blocked if the **sum** of cake weights across order items exceeds 1 kg, or when a product's weight unit cannot be verified. Use an alternative courier for large cakes. A cake plus its packaging/box can exceed the declared weight; verify packed weight and dimensions manually even for 1 kg cake orders.
+* Borzo India's current delivery conditions also restrict cake damage/loss **claims** beyond 7 km and above 1 kg; that claims condition is different from whether a courier can accept a journey. See: https://borzodelivery.com/in/terms-and-conditions
 * The selected Order's `branchId` determines the pickup address.
   `BORZO_APPROVED_BRANCH_CODES` is an explicit allowlist so wrong seed addresses
   cannot silently be booked.
@@ -103,8 +105,6 @@ A customer placing a COD order or paying online does NOT book a courier.
   request **production Business API access** from Borzo, rotate/configure new
   production credentials, verify cost, COD, pickup address, callback signature
   and enable `BORZO_ENV=production` only when ready.
-* A 3–5 kg cake can fit in the documented weight limit but may not fit safely
-  on a motorbike by dimension; validate box dimensions and packaging. No
-  automatic multi-vehicle allocation is implemented.
+* **2–5 kg cakes are not auto-booked with Borzo** under the present cake-specific limitation. Choose an alternative carrier with confirmed cake handling, dimensions and packaging support. Even allowed 0.5–1 kg cake orders need secure upright packaging and service-area verification; there is no automatic alternative carrier allocation.
 
 API documentation: https://borzodelivery.com/in/business-api/doc
