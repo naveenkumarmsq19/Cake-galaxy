@@ -6,5 +6,6 @@ export const metadata = {
   }
 };
 import { Suspense } from "react";
+import CakeLoader from "../../src/components/CakeLoader";
 import { Product } from "../../src/screens/Browse";
-export default function Page() { return <Suspense fallback={<div className="wrap page">Loading cake…</div>}><Product/></Suspense>; }
+export default function Page() { return <Suspense fallback={<CakeLoader size="large" fullScreen label="Loading cake…"/>}><Product/></Suspense>; }
