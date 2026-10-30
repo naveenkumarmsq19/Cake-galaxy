@@ -58,10 +58,18 @@ export function buildBorzoRequest(order, branch, env = process.env, now = new Da
   const pickupEnd = new Date(slotStart.getTime() - 30 * 60_000);
   if (Number.isNaN(slotStart.getTime()) || pickupEnd.getTime() <= now.getTime() + 5 * 60_000)
     throw new BorzoError("Delivery slot is too close or has passed. Arrange delivery manually.");
-  const kilos = (order.items || []).reduce((sum, item) =>
-    sum + (item.unit === "kg" ? Number(item.size) * Number(item.quantity) : 0), 0);
-  if (!Number.isFinite(kilos) || kilos < 0 || kilos > 20)
-    throw new BorzoError("Cake weight exceeds motorbike capacity; arrange a suitable vehicle manually.");
+  // The Borzo India booking form explicitly says cakes up to 1 kg only.
+  // Motorbike's general 20 kg parcel limit MUST NOT override this cake restriction.
+  // Require recognized cake weights; unsupported units must use manual delivery.
+  const items = order.items || [];
+  if (!Array.isArray(items) || items.length === 0 ||
+      items.some((item) => item.unit !== "kg" ||
+        !Number.isFinite(Number(item.size)) || Number(item.size) <= 0 ||
+        !Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0))
+    throw new BorzoError("Cannot verify cake weight for Borzo; arrange delivery manually.");
+  const kilos = items.reduce((sum, item) => sum + Number(item.size) * Number(item.quantity), 0);
+  if (!Number.isFinite(kilos) || kilos > 1)
+    throw new BorzoError("Borzo supports cakes up to 1 kg only. Arrange an alternative courier for this order.");
   const request = {
     type: "standard",
     matter: "Fragile birthday or celebration cake. Keep upright. Do not tilt or stack.",
