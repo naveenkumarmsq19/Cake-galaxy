@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none" role="img" aria-label="Cake Galaxy cake outline loading">
+  <style>
+    .cake-line {stroke:#4d7958;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    .draw {stroke-dasharray:650;stroke-dashoffset:650;animation:trace 2.6s ease-in-out infinite}
+    .iced {stroke-dasharray:250;stroke-dashoffset:250;animation:icing 2.6s ease-in-out infinite}
+    .candle {stroke-dasharray:46;stroke-dashoffset:46;animation:candle 2.6s ease-in-out infinite}
+    .flame {transform-origin:160px 80px;animation:glow 2.6s ease-in-out infinite}
+    .spark {animation:sparkle 2.6s ease-in-out infinite}
+    @keyframes trace {0%,10%{stroke-dashoffset:650;opacity:.25}43%,86%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-650;opacity:.15}}
+    @keyframes icing {0%,22%{stroke-dashoffset:250;opacity:0}52%,86%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-250;opacity:0}}
+    @keyframes candle {0%,40%{stroke-dashoffset:46;opacity:0}60%,87%{stroke-dashoffset:0;opacity:1}100%{opacity:0}}
+    @keyframes glow {0%,47%,96%,100%{opacity:0;transform:scale(.6)}65%{opacity:1;transform:scale(1.1)}75%,87%{opacity:.9;transform:scale(.95)}}
+    @keyframes sparkle {0%,53%,100%{opacity:0}70%,86%{opacity:.9}}
+    @media (prefers-reduced-motion:reduce) {.draw,.iced,.candle,.flame,.spark{animation:none;stroke-dashoffset:0;opacity:1;transform:none}}
+  </style>
+  <path class="cake-line draw" d="M88 171L88 238L233 238L233 170M102 239L102 252L219 252L219 239"/>
+  <path class="cake-line draw" d="M80 166Q80 157 95 153Q104 150 112 151L207 151Q235 153 239 165L240 169Q239 176 230 178"/>
+  <path class="cake-line iced" d="M80 171L96 182L113 173L127 182L142 174L157 183L172 174L187 183L203 175L219 183L235 173"/>
+  <path class="cake-line candle" d="M160 151L160 91"/>
+  <path class="flame" fill="#E9B65C" stroke="#4d7958" stroke-width="4" d="M160 74C169 83 167 90 160 93C151 89 152 82 160 74Z"/>
+  <circle class="spark" cx="94" cy="277" r="3.5" fill="#4d7958"/>
+  <circle class="spark" cx="187" cy="272" r="3.5" fill="#4d7958"/>
+  <circle class="spark" cx="202" cy="280" r="3.5" fill="#4d7958"/>
+</svg>
