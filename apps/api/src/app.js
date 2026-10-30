@@ -18,6 +18,7 @@ import { issueInvoice, merchantGstRegistered } from "./invoice.js";
 import { paymentReadiness, codReadiness } from "./paymentReadiness.js";
 import { imageKitProduct } from "./imageKitProduct.js";
 import { parseCancellation, visibleCancellation, applyRefundWebhook } from "./cancellations.js";
+import { verifyBorzoSignature, handleBorzoCallback } from "./borzo.js";
 
 const cookieName = "cg_session";
 const hours = 60 * 60 * 1000;
@@ -26,7 +27,7 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => paymentReadiness().ready;
 const codReady = () => codReadiness().ready;
 const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
-const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : (order.paymentMethod === "cod" || order.paymentStatus?.startsWith("cod_")) ? "COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
+const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : (order.paymentMethod === "cod" || order.paymentStatus?.startsWith("cod_")) ? "COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent", ...(order.borzo?.state === "booked" ? { courier: { provider: "Borzo", status: order.borzo.deliveryStatus || order.borzo.status || "booked", trackingUrl: order.borzo.trackingUrl || null } } : {}) });
 
 async function deliveryAssignment(pincode) {
   const area = await ServiceArea.findOne({ pincode, active: true }).lean();
@@ -122,6 +123,17 @@ export function createApp() {
       const orderId = event.payload?.payment?.entity?.order_id || event.payload?.order?.entity?.id;
       const order = await Order.findOne({ razorpayOrderId: orderId });
       if (order && paymentId) await confirmCaptured(order, paymentId);
+      res.json({ received: true });
+    } catch (error) { next(error); }
+  });
+
+  // Borzo signs exact JSON bytes, so raw parsing must come first.
+  app.post("/api/webhooks/borzo", express.raw({ type: "application/json", limit: "256kb" }), async (req, res, next) => {
+    try {
+      if (!verifyBorzoSignature(req.body, req.get("X-DV-Signature"))) throw new HttpError(401, "Invalid Borzo webhook signature.");
+      const event = JSON.parse(req.body.toString("utf8"));
+      if (!["order_created", "order_changed", "delivery_created", "delivery_changed"].includes(event?.event_type)) return res.json({ received: true });
+      await handleBorzoCallback(event);
       res.json({ received: true });
     } catch (error) { next(error); }
   });
