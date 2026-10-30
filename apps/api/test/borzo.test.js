@@ -42,9 +42,13 @@ test("COD collection is opt-in and the customer amount is sent in rupees", () =>
   assert.equal(request.points[1].taking_amount, "649.00");
   assert.equal(request.points[1].is_cod_cash_voucher_required, true);
 });
-test("late or oversized orders do not book automatically", () => {
+test("late, overweight and non-kg cake orders cannot be automatically booked", () => {
   assert.throws(() => buildBorzoRequest(order(), branch, env, new Date("2026-11-10T13:00:00+05:30")), /too close/);
-  assert.throws(() => buildBorzoRequest({ ...order(), items: [{ size: 5, unit: "kg", quantity: 5 }] }, branch, env, now), /capacity/);
+  assert.throws(() => buildBorzoRequest({ ...order(), items: [{ size: 2, unit: "kg", quantity: 1 }] }, branch, env, now), /cakes up to 1 kg/);
+  assert.throws(() => buildBorzoRequest({ ...order(), items: [{ size: 0.5, unit: "kg", quantity: 3 }] }, branch, env, now), /cakes up to 1 kg/);
+  assert.throws(() => buildBorzoRequest({ ...order(), items: [{ size: 0.5, unit: "gm", quantity: 1 }] }, branch, env, now), /Cannot verify cake weight/);
+  assert.equal(buildBorzoRequest({ ...order(), items: [{ size: 0.5, unit: "kg", quantity: 1 }] }, branch, env, now).total_weight_kg, 1);
+  assert.equal(buildBorzoRequest({ ...order(), items: [{ size: 0.5, unit: "kg", quantity: 2 }] }, branch, env, now).total_weight_kg, 1);
 });
 test("signed callback uses exact request bytes and rejects tampering", () => {
   const secret = "private-callback-secret";
