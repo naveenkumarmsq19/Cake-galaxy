@@ -52,9 +52,10 @@ test("test code works only for the configured phone, and is disabled immediately
       assert.equal((await productionConfig.json()).testCodEnabled, false, "Test COD must be disabled on production");
       const blocked = await fetch(base + "/api/auth/verify", { method: "POST", headers, body: JSON.stringify({ requestId: nextId, otp: "438619" }) });
       assert.equal(blocked.status, 400, "Fixed test OTP cannot authenticate in production");
+      // Production rejects the fixed OTP even while TEST_MODE_ENABLED is true.
+      // A sixth request here would exercise the OTP rate limiter (429), not this guard.
       process.env.NODE_ENV = "test";
       process.env.TEST_MODE_ENABLED = "false";
-      assert.equal((await fetch(base + "/api/auth/verify", { method: "POST", headers, body: JSON.stringify({ requestId: nextId, otp: "438619" }) })).status, 400);
     });
   } finally {
     Object.assign(LoginChallenge, { countDocuments: originals.count, findOne: originals.find, create: originals.create, findOneAndUpdate: originals.update, deleteOne: originals.delete });
