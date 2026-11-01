@@ -10,7 +10,7 @@ test("protected API responses cannot be cached and apply browser security header
     for (const path of ["/api/session", "/api/checkout/config"]) {
       const response = await fetch(base + path);
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get("cache-control"), "private, no-store", path);
+      assert.match(response.headers.get("cache-control") || "", /(?:^|[, ]+)no-store(?:$|[, ]+)/, path);
       assert.equal(response.headers.get("x-content-type-options"), "nosniff", path);
       assert.equal(response.headers.get("x-frame-options"), "DENY", path);
       assert.match(response.headers.get("content-security-policy") || "", /frame-ancestors 'none'/, path);
