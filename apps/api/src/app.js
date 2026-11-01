@@ -25,7 +25,8 @@ const slots = ["10 AM – 1 PM", "1 PM – 4 PM", "4 PM – 7 PM", "7 PM – 10 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const merchantReady = () => paymentReadiness().ready;
 const codReady = () => codReadiness().ready;
-const testPhoneEnabled = (phone) => process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
+// Never allow fixed OTPs or simulated COD orders in the live production environment.
+const testPhoneEnabled = (phone) => process.env.NODE_ENV !== "production" && process.env.TEST_MODE_ENABLED === "true" && /^[6-9][0-9]{9}$/.test(process.env.TEST_PHONE || "") && /^[0-9]{6}$/.test(process.env.TEST_OTP_CODE || "") && phone === process.env.TEST_PHONE;
 const returnOrder = (order) => ({ reference: order.reference, amount: order.amount, status: order.status, statusLabel: order.paymentStatus === "test_cod" ? "Test COD · " + order.status.replaceAll("_", " ") : (order.paymentMethod === "cod" || order.paymentStatus?.startsWith("cod_")) ? "COD · " + order.status.replaceAll("_", " ") : order.status === "pending_payment" ? "Awaiting payment" : order.status === "confirmed" ? "Order confirmed" : order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod || (order.paymentStatus?.startsWith("cod_") ? "cod" : order.paymentStatus === "test_cod" ? "test_cod" : "online"), testOrder: order.testOrder === true, cancellation: visibleCancellation(order.cancellation), deliveryLabel: order.delivery?.date + " · " + order.delivery?.slot, whatsappSent: order.notificationStatus === "sent" });
 
 async function deliveryAssignment(pincode) {
@@ -105,11 +106,22 @@ export function createApp() {
   ].map((value) => value.trim().replace(/\/$/, "")).filter(Boolean))];
   app.disable("x-powered-by");
   if (process.env.NODE_ENV === "production" || process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
-  app.use((req, res, next) => { res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); next(); });
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    if (/^\/api\/(?:auth|admin|session|checkout|orders|uploads|custom-requests|webhooks)(?:\/|$)/.test(req.path)) {
+      res.setHeader("Cache-Control", "private, no-store");
+    }
+    next();
+  });
   app.use(cors({ origin: origins, credentials: true }));
   app.use(cookieParser());
 
   app.post("/api/webhooks/razorpay", express.raw({ type: "application/json", limit: "1mb" }), async (req, res, next) => {
+    res.setHeader("Cache-Control", "private, no-store");
     try {
       if (!Buffer.isBuffer(req.body) || !validWebhookSignature(req.body, req.get("X-Razorpay-Signature"))) throw new HttpError(401, "Invalid webhook signature.");
       const event = JSON.parse(req.body.toString("utf8"));
@@ -141,6 +153,8 @@ export function createApp() {
     res.status(databaseReady ? 200 : 503).json({ ok: databaseReady, database: databaseReady ? "connected" : "unavailable" });
   });
   app.get("/api/catalog", async (_req, res) => {
+    // Public catalogue only; authenticated/session/order data must never be cached.
+    res.setHeader("Cache-Control", "public, max-age=30, s-maxage=30");
     const [catalog, categories] = await Promise.all([
       Product.find({ active: true, deletedAt: null }, { _id: 0, __v: 0, active: 0 }).lean(),
       Category.find({ active: true }, { _id: 0, __v: 0, keywords: 0 }).sort({ sortOrder: 1, name: 1 }).lean()

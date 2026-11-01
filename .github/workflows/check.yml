@@ -14,6 +14,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Dependency vulnerability inventory
+        run: |
+          npm audit --omit=dev --audit-level=high || true
       - run: npm run check
       - name: Verify Cloudflare Pages export
         run: CAKE_STATIC_EXPORT=1 npm run build -w @cake-galaxy/web

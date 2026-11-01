@@ -36,7 +36,7 @@ export function StoreProvider({ children }) {
     let response;
     try {
       response = await fetch(API_URL + path, {
-        method, credentials: "include", cache: "no-store",
+        method, credentials: "include", cache: method === "GET" && path === "/catalog" ? "default" : "no-store",
         headers: {
           Accept: "application/json",
           ...(!formData && body !== undefined ? { "Content-Type": "application/json" } : {}),
