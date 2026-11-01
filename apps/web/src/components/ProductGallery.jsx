@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { imageDelivery } from "./imageDelivery.mjs";
 
 export const galleryPhotos = product => product?.images?.length ? product.images : (product?.image ? [product.image] : []);
 
@@ -36,7 +37,7 @@ export default function ProductGallery({ product }) {
         setActive(Math.max(0,Math.min(images.length-1,Math.round(el.scrollLeft/Math.max(1,el.clientWidth)))));
       }}>
         {images.map((src,i)=><div className="product-gallery-slide" key={src}>
-          <img src={src} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"} draggable="false" onLoad={event => rememberAspectRatio(src,event)}/>
+          <img {...imageDelivery(src, "(max-width: 800px) 92vw, 52vw", [320, 480, 640, 960, 1280])} alt={product.name+" – photo "+(i+1)+" of "+images.length} loading={i?"lazy":"eager"} decoding="async" draggable="false" onLoad={event => rememberAspectRatio(src,event)}/>
         </div>)}
       </div>
       {selectedSrc && <button type="button" className="product-gallery-view-full" onClick={openFullPhoto} aria-label={"View full photograph of "+product.name}>
@@ -49,7 +50,7 @@ export default function ProductGallery({ product }) {
       </>}
     </div>
     {images.length>1 && <div className="product-gallery-thumbs" aria-label="Choose cake photo">
-      {images.map((src,i)=><button type="button" className={i===active?"active":""} key={src} onClick={()=>go(i)} aria-label={"Show photo "+(i+1)} aria-current={i===active?"true":undefined}><img loading="lazy" src={src} alt=""/></button>)}
+      {images.map((src,i)=><button type="button" className={i===active?"active":""} key={src} onClick={()=>go(i)} aria-label={"Show photo "+(i+1)} aria-current={i===active?"true":undefined}><img loading="lazy" decoding="async" {...imageDelivery(src, "96px", [96, 192])} alt=""/></button>)}
     </div>}
     <p className="photo-footnote">Swipe through the photos or select “View full photo” to see the original image without cropping.</p>
     <dialog ref={fullPhotoDialog} className="product-gallery-full-dialog" aria-label={"Full image of "+product.name}>

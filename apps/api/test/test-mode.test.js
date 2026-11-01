@@ -15,7 +15,7 @@ async function withServer(run) {
 function setTestEnv() {
   const keys = ["NODE_ENV", "TEST_MODE_ENABLED", "TEST_PHONE", "TEST_OTP_CODE", "GST_RATE_PERCENT", "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"];
   const old = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-  Object.assign(process.env, { NODE_ENV: "production", TEST_MODE_ENABLED: "true", TEST_PHONE: "9876543210", TEST_OTP_CODE: "438619", GST_RATE_PERCENT: "0" });
+  Object.assign(process.env, { NODE_ENV: "test", TEST_MODE_ENABLED: "true", TEST_PHONE: "9876543210", TEST_OTP_CODE: "438619", GST_RATE_PERCENT: "0" });
   delete process.env.RAZORPAY_KEY_ID;
   delete process.env.RAZORPAY_KEY_SECRET;
   return () => { for (const key of keys) if (old[key] === undefined) delete process.env[key]; else process.env[key] = old[key]; };
@@ -47,8 +47,15 @@ test("test code works only for the configured phone, and is disabled immediately
       assert.match(valid.headers.get("set-cookie"), /cg_session=/);
       const next = await send("9876543210");
       const nextId = (await next.json()).requestId;
+      process.env.NODE_ENV = "production";
+      const productionConfig = await fetch(base + "/api/checkout/config", { headers });
+      assert.equal((await productionConfig.json()).testCodEnabled, false, "Test COD must be disabled on production");
+      const blocked = await fetch(base + "/api/auth/verify", { method: "POST", headers, body: JSON.stringify({ requestId: nextId, otp: "438619" }) });
+      assert.equal(blocked.status, 400, "Fixed test OTP cannot authenticate in production");
+      // Production rejects the fixed OTP even while TEST_MODE_ENABLED is true.
+      // A sixth request here would exercise the OTP rate limiter (429), not this guard.
+      process.env.NODE_ENV = "test";
       process.env.TEST_MODE_ENABLED = "false";
-      assert.equal((await fetch(base + "/api/auth/verify", { method: "POST", headers, body: JSON.stringify({ requestId: nextId, otp: "438619" }) })).status, 400);
     });
   } finally {
     Object.assign(LoginChallenge, { countDocuments: originals.count, findOne: originals.find, create: originals.create, findOneAndUpdate: originals.update, deleteOne: originals.delete });
