@@ -5,9 +5,9 @@ import { imageDelivery } from "../src/components/imageDelivery.mjs";
 const source = "https://ik.imagekit.io/yh2bfhc93/cake-galaxy/products/menu-white-forest-truffle/image-01.webp";
 test("ImageKit image delivery selects bounded responsive images without changing the underlying asset", () => {
   const result = imageDelivery(source, "(max-width: 600px) 50vw, 260px");
-  assert.match(result.src, /[?]tr=w-480,q-75$/);
-  assert.match(result.srcSet, /w-160,q-75 160w/);
-  assert.match(result.srcSet, /w-960,q-75 960w/);
+  assert.equal(new URL(result.src).searchParams.get("tr"), "w-480,q-75");
+  assert.match(result.srcSet, /w-160%2Cq-75 160w/);
+  assert.match(result.srcSet, /w-960%2Cq-75 960w/);
   assert.equal(result.sizes, "(max-width: 600px) 50vw, 260px");
 });
 test("private, other-host and pre-transformed images are never modified", () => {
