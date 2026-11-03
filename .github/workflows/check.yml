@@ -22,3 +22,5 @@ jobs:
       - run: npm run check
       - name: Verify Cloudflare Pages export
         run: CAKE_STATIC_EXPORT=1 npm run build -w @cake-galaxy/web
+      - name: Verify search-visible HTML and structured data
+        run: npm run check:search-export -w @cake-galaxy/web

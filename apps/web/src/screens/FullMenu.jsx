@@ -1,5 +1,7 @@
 "use client";
 
+import { productHref } from "../seo/urls.mjs";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, unitPrice } from "@cake-galaxy/catalog";
@@ -46,15 +48,15 @@ export default function FullMenu() {
     {sections.length ? <div className="menu-sections">{sections.map(section=><section className="menu-section" key={section.id} id={section.id}>
       <h2>{section.title}</h2>
       <div className="menu-table-scroll"><table className="menu-table">
-        <thead><tr><th scope="col">Cake</th><th scope="col">½ kg</th><th scope="col">1 kg (10% off)</th><th scope="col">1½ kg (10% off)</th></tr></thead>
+        <thead><tr><th scope="col">Cake</th><th scope="col">½ kg</th><th scope="col">1 kg (10% off)</th><th scope="col">2 kg (10% off)</th></tr></thead>
         <tbody>{section.items.map(product=><tr key={product.id}>
-          <th scope="row"><Link href={"/product?id="+encodeURIComponent(product.id)}>{product.name} ↗</Link></th>
-          <td>{quotedPrice(product,0.5)}</td><td>{quotedPrice(product,1)}</td><td>{quotedPrice(product,1.5)}</td>
+          <th scope="row"><Link href={productHref(product)}>{product.name} ↗</Link></th>
+          <td>{quotedPrice(product,0.5)}</td><td>{quotedPrice(product,1)}</td><td>{quotedPrice(product,2)}</td>
         </tr>)}</tbody>
       </table></div>
     </section>)}</div> : <div className="empty-state"><h2>{catalogLoaded ? "No matching cakes" : "Loading the latest menu..."}</h2>{catalogLoaded && <button type="button" className="button outline" onClick={()=>setQuery("")}>Clear search</button>}</div>}
     <section className="menu-terms">
-      <h2>Other cake sizes</h2><p>Choose weights up to 20 kg in ½ kg increments on the product page. Final totals include any selected extras and delivery charges. Products not yet approved for sale remain hidden from this live menu. Photos may be illustrative until actual bakery images are uploaded.</p>
+      <h2>Other cake sizes</h2><p>Choose from the weights offered on each product page, up to 5 kg for kilogram-priced cakes. Final totals include any selected extras and delivery charges. Products not yet approved for sale remain hidden from this live menu. Photos may be illustrative until actual bakery images are uploaded.</p>
       <div className="menu-ctas"><Link href="/shop" className="button">Shop available cakes</Link><Link href="/custom" className="button outline">Request a custom cake</Link></div>
     </section>
   </div>;

@@ -1,5 +1,7 @@
 "use client";
 
+import { productHref } from "../seo/urls.mjs";
+
 import Link from "next/link";
 import { discountAmount, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "./Storefront";
@@ -10,7 +12,7 @@ export function ProductCard({ product }) {
   const startingPrice = unitPrice(startingItem, product);
   const originalPrice = regularUnitPrice(startingItem, product);
   const saving = discountAmount(startingItem, product);
-  return <article className="product-card"><Link className="product-card-image" href={"/product?id=" + product.id}><img {...imageDelivery(product.images?.[0] || product.image, "(max-width: 600px) 46vw, (max-width: 1024px) 30vw, 260px")} alt={product.name} loading="lazy" decoding="async"/><span className="product-tag">{product.badge}</span></Link><div className="product-card-info"><h3><Link href={"/product?id=" + product.id}>{product.name}</Link></h3><div className="price-line"><span className="price">{money(startingPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}<small>{sizeLabel(product)}</small>{product.unit === "kg" && product.weights.some((weight) => weight >= 1) && <small className="discount-badge">10% off from 1 kg</small>}</div><p className="meta">{product.photo ? "Add your photograph" : "Personalise with a message"}</p></div></article>;
+  return <article className="product-card"><Link className="product-card-image" href={productHref(product)}><img {...imageDelivery(product.images?.[0] || product.image, "(max-width: 600px) 46vw, (max-width: 1024px) 30vw, 260px")} alt={product.name} loading="lazy" decoding="async"/><span className="product-tag">{product.badge}</span></Link><div className="product-card-info"><h3><Link href={productHref(product)}>{product.name}</Link></h3><div className="price-line"><span className="price">{money(startingPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}<small>{sizeLabel(product)}</small>{product.unit === "kg" && product.weights.some((weight) => weight >= 1) && <small className="discount-badge">10% off from 1 kg</small>}</div><p className="meta">{product.photo ? "Add your photograph" : "Personalise with a message"}</p></div></article>;
 }
 
 export function Summary({ children, taxRate = null, gstRegistered = true }) {

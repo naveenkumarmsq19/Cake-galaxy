@@ -4,8 +4,8 @@ export default function robots() {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
-      disallow: ["/admin/", "/api/"]
+      allow: ["/", "/api/product-images/"],
+      disallow: ["/admin", "/api/"]
     },
     sitemap: "https://cakegalaxy.in/sitemap.xml"
   };

@@ -11,3 +11,10 @@
 
 /images/*
   Cache-Control: public, max-age=86400
+
+# Keep the custom domain as the indexable copy; Pages previews are for review.
+https://cake-galaxy-web.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:deployment.cake-galaxy-web.pages.dev/*
+  X-Robots-Tag: noindex
