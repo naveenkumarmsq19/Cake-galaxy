@@ -11,4 +11,5 @@ coverage/
 out/
 uploads/
 .vercel/
+apps/web/src/generated/search-catalog.json
 !.env.example

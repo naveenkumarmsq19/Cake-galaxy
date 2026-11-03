@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { approvedWeightsKg, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
+import { categoryHref } from "../seo/urls.mjs";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -16,10 +17,13 @@ export function useStore() {
   return store;
 }
 
-export function StoreProvider({ children }) {
-  const [catalog, setCatalog] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [catalogLoaded, setCatalogLoaded] = useState(false); // Never expose unapproved sample products while catalogue API loads.
+export function StoreProvider({ children, initialCatalog }) {
+  // Server HTML contains the last build's verified public catalogue, never demo products.
+  const [catalog, setCatalog] = useState(initialCatalog?.products || []);
+  const [categories, setCategories] = useState(initialCatalog?.categories || []);
+  const [catalogLoaded, setCatalogLoaded] = useState(Boolean(initialCatalog));
+  const staticProductPaths = useRef(new Map((initialCatalog?.products || []).map((product) => [product.id, product.seoPath])));
+  const staticCategoryPaths = useRef(new Map((initialCatalog?.categories || []).map((category) => [category.slug, category.seoPath])));
   const [cart, setCart] = useState([]);
   const cartRef = useRef([]);
   const [hydrated, setHydrated] = useState(false);
@@ -108,8 +112,8 @@ export function StoreProvider({ children }) {
     refreshSession().catch(() => {}).finally(() => setSessionLoaded(true));
     api("/catalog", { skipCsrf: true }).then((data) => {
       if (Array.isArray(data.products)) {
-        setCatalog(data.products);
-        setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active && data.products.some(product => product.category?.includes(item.name))) : []);
+        setCatalog(data.products.map((product) => ({ ...product, seoPath: staticProductPaths.current.get(product.id) })));
+        setCategories(Array.isArray(data.categories) ? data.categories.filter(item => item.active && data.products.some(product => product.category?.includes(item.name))).map((category) => ({ ...category, seoPath: staticCategoryPaths.current.get(category.slug) })) : []);
         setCatalogLoaded(true);
         const available = new Map(data.products.map((product) => [product.id, product]));
         const valid = cartRef.current.filter((item) => available.get(item.productId)?.weights?.includes(Number(item.size)) && (available.get(item.productId)?.unit !== "kg" || approvedWeightsKg.includes(Number(item.size))));
@@ -199,7 +203,7 @@ export function Header() {
         <div className="header-actions"><Link className="header-action" href="/orders" aria-label="Account"><Icon name="user"/><span>Account</span></Link><Link className="header-action bag-link" href="/cart" aria-label="Shopping bag"><Icon name="bag"/><span>Bag</span>{count > 0 && <b className="cart-count">{count}</b>}</Link></div>
       </div>
       <nav className="category-nav" aria-label="Shop categories"><div className="wrap category-inner">
-        <Link href="/shop">All cakes</Link><Link href="/menu" className={path === "/menu" ? "active" : ""}>Our Menu</Link>{categories.map(category => <Link key={category.slug} href={"/shop?category="+encodeURIComponent(category.name)}>{category.name}</Link>)}<Link href="/custom">Custom cakes <span>Made for you</span></Link>
+        <Link href="/shop">All cakes</Link><Link href="/menu" className={path === "/menu" ? "active" : ""}>Our Menu</Link>{categories.map(category => <Link key={category.slug} href={categoryHref(category)}>{category.name}</Link>)}<Link href="/custom">Custom cakes <span>Made for you</span></Link>
       </div></nav>
     </header>
     <nav className="mobile-nav" aria-label="Mobile navigation">{[["/", "home", "Home"], ["/shop", "search", "Cakes"], ["/orders", "orders", "Orders"], ["/cart", "bag", "Bag"]].map(([href, icon, label]) => <Link key={label} href={href} className={path === href ? "active" : ""} aria-current={path === href ? "page" : undefined}><Icon name={icon}/>{label}</Link>)}</nav>
@@ -207,7 +211,7 @@ export function Header() {
   </>;
 }
 
-export function Footer() { const { categories } = useStore(); return <footer className="site-footer"><div className="wrap footer-grid"><div className="footer-brand"><Link href="/" className="brand" aria-label="Cake Galaxy home"><img className="brand-logo" src="/images/cake-galaxy-sage-logo.webp" alt="" width={66} height={66} loading="lazy" decoding="async"/><span className="brand-wordmark">cake galaxy</span></Link><p>A cake for the little moments.<br/>A centrepiece for the big ones.</p></div><div><h2>Find your cake</h2><Link href="/menu">Full menu & prices</Link>{categories.slice(0, 3).map(category => <Link key={category.slug} href={"/shop?category="+encodeURIComponent(category.name)}>{category.name}</Link>)}<Link href="/custom">Custom creations</Link></div><div><h2>Here to help</h2><Link href="/orders">My orders</Link><Link href="/help">Help & contact</Link><Link href="/policy?type=refund">Cancellation & refunds</Link></div><div><h2>The details</h2><Link href="/policy?type=delivery">Delivery information</Link><Link href="/policy?type=terms">Terms & conditions</Link><Link href="/policy?type=privacy">Privacy</Link></div></div><div className="wrap footer-bottom"><span>© {new Date().getFullYear()} Cake Galaxy</span><span>UPI / Cards / Netbanking</span><span className="footer-credit">Developed by <strong>NC Groups</strong></span></div></footer>; }
+export function Footer() { const { categories } = useStore(); return <footer className="site-footer"><div className="wrap footer-grid"><div className="footer-brand"><Link href="/" className="brand" aria-label="Cake Galaxy home"><img className="brand-logo" src="/images/cake-galaxy-sage-logo.webp" alt="" width={66} height={66} loading="lazy" decoding="async"/><span className="brand-wordmark">cake galaxy</span></Link><p>A cake for the little moments.<br/>A centrepiece for the big ones.</p></div><div><h2>Find your cake</h2><Link href="/menu">Full menu & prices</Link>{categories.slice(0, 3).map(category => <Link key={category.slug} href={categoryHref(category)}>{category.name}</Link>)}<Link href="/custom">Custom creations</Link><Link href="/visit/">Visit our Nagarbhavi store</Link></div><div><h2>Here to help</h2><Link href="/orders">My orders</Link><Link href="/help">Help & contact</Link><Link href="/policy?type=refund">Cancellation & refunds</Link></div><div><h2>The details</h2><Link href="/policy?type=delivery">Delivery information</Link><Link href="/policy?type=terms">Terms & conditions</Link><Link href="/policy?type=privacy">Privacy</Link></div></div><div className="wrap footer-bottom"><span>© {new Date().getFullYear()} Cake Galaxy</span><span>UPI / Cards / Netbanking</span><span className="footer-credit">Developed by <strong>NC Groups</strong></span></div></footer>; }
 
 function answer(message) {
   if (/cancel|refund/i.test(message)) return "Open My orders to request cancellation. Eligibility is reviewed before a refund decision.";

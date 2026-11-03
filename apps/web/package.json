@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/build-search-catalog.mjs",
     "dev": "next dev -p 3000",
+    "prebuild": "node ../../scripts/build-search-catalog.mjs",
     "build": "next build",
     "start": "next start -p 3000",
-    "test:chat": "node --test test/*.test.mjs"
+    "test:chat": "node --test test/*.test.mjs",
+    "check:search-export": "node ../../scripts/verify-search-export.mjs"
   },
   "dependencies": {
     "@cake-galaxy/catalog": "1.0.0",

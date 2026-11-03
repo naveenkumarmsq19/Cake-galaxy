@@ -1,5 +1,7 @@
 # Cake Galaxy
 
+Search, answer content, static product discovery and owner-account rollout steps are documented in [SEARCH_DISCOVERY_SETUP.md](docs/SEARCH_DISCOVERY_SETUP.md).
+
 Cake Galaxy customer storefront. The web app uses Next.js App Router and React; the API uses Express, Node.js and MongoDB. The UI has a light sage palette and a compact image banner on mobile. Business data, OTP, payments and notifications stay on the server.
 
 ## Project structure

@@ -10,26 +10,35 @@ import PhoneVerification from "../components/PhoneVerification";
 import ProductGallery from "../components/ProductGallery";
 import { imageDelivery } from "../components/imageDelivery.mjs";
 import CakeLoader from "../components/CakeLoader";
+import { categoryHref } from "../seo/urls.mjs";
+import { jsonLd, productGraph } from "../seo/site.mjs";
 
-export function Home() {
+export function Home({ children }) {
   const { catalog, categories, catalogLoaded } = useStore();
   return <div className="wrap page home-page">
     <section className="hero" aria-labelledby="hero-title"><img className="hero-art" src={images.banner} alt="Ivory celebration cake with delicate sage details" fetchPriority="high"/><div className="hero-copy"><span className="overline">CAKE GALAXY · BENGALURU</span><h1 id="hero-title">Cake Galaxy<br/><em>made for your moments.</em></h1><p>Order birthday cakes, photo cakes and personalised celebration cakes in Bengaluru.</p><Link className="button" href="/shop">Shop cakes <Icon name="arrow"/></Link> <Link className="button outline" href="/menu">View full menu</Link></div></section>
-    <section className="section occasions"><SectionHeading title="Explore cake categories." />{!catalogLoaded && <CakeLoader size="medium" label="Loading cake categories…" />}<div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={"/shop?category=" + encodeURIComponent(category.name)} key={category.slug}><span className="category-image"><img {...imageDelivery(cover?.images?.[0] || cover?.image || category.image || images.celebration, "(max-width: 600px) 44vw, 180px", [160, 320, 480])} alt="" loading="lazy" decoding="async"/></span>{category.name}</Link>; })}</div></section>
+    <section className="section occasions"><SectionHeading title="Explore cake categories." />{!catalogLoaded && <CakeLoader size="medium" label="Loading cake categories…" />}<div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={categoryHref(category)} key={category.slug}><span className="category-image"><img {...imageDelivery(cover?.images?.[0] || cover?.image || category.image || images.celebration, "(max-width: 600px) 44vw, 180px", [160, 320, 480])} alt="" loading="lazy" decoding="async"/></span>{category.name}</Link>; })}</div></section>
     <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more." />{!catalogLoaded && <CakeLoader size="medium" label="Loading favourite cakes…" />}<div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     <section className="section custom-banner"><div className="custom-banner-copy"><span className="overline">MADE JUST FOR YOU</span><h2>Your idea.<br/><em>Our finishing touch.</em></h2><p>Share a design you love. We’ll make it your own.</p><Link href="/custom" className="button outline">Create your cake <Icon name="arrow"/></Link></div><img src={images.custom} alt="Two-tier celebration cake with seasonal berries" loading="lazy"/></section>
     <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day." />{!catalogLoaded && <CakeLoader size="medium" label="Loading more cakes…" />}<div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
-    <section className="section" aria-labelledby="cake-galaxy-location"><h2 id="cake-galaxy-location">Visit Cake Galaxy in Bengaluru</h2><p>Find Cake Galaxy at No. 1, Nagarabhavi Main Road, opposite Bank of Baroda, Mudalapalya, Bengaluru 560072. Check delivery availability for your pincode before ordering online.</p></section>
+    {children}
   </div>;
 }
 
 export function Shop() {
-  const router = useRouter();
   const params = useSearchParams();
-  const { catalog, categories, catalogLoaded } = useStore();
   const category = params.get("category") || "All";
   const query = (params.get("q") || "").trim();
   const sort = params.get("sort") || "recommended";
+  return <ShopView category={category} query={query} sort={sort}/>;
+}
+
+// The static fallback shows the approved catalogue when JavaScript/search parameters are unavailable.
+export function DefaultShop() { return <ShopView/>; }
+
+function ShopView({ category = "All", query = "", sort = "recommended" }) {
+  const router = useRouter();
+  const { catalog, categories, catalogLoaded } = useStore();
   const options = ["All", ...categories.map(item => item.name)];
   const matches = catalog.filter((product) => (category === "All" || (product.category || []).includes(category)) && (product.name + " " + product.flavour + " " + (product.category || []).join(" ")).toLowerCase().includes(query.toLowerCase()));
   const startingPrice = (p) => unitPrice({ productId: p.id, size: p.weights[0], eggless: false, addons: [] }, p);
@@ -43,11 +52,15 @@ export function Shop() {
   </div>;
 }
 
-export function Product() {
+export function LegacyProduct() {
   const params = useSearchParams();
+  return <Product productId={params.get("id")} legacy/>;
+}
+
+export function Product({ productId, legacy = false }) {
   const router = useRouter();
   const { catalog, catalogLoaded, session, api, addItem, pincode, checkDelivery } = useStore();
-  const product = catalog.find((item) => item.id === params.get("id"));
+  const product = catalog.find((item) => item.id === productId);
   const [quantity, setQuantity] = useState(1);
   const [size, setSize] = useState(product?.weights?.[0] ?? 0.5);
   const [eggless, setEggless] = useState(false);
@@ -60,6 +73,9 @@ export function Product() {
   const [deliveryPin, setDeliveryPin] = useState(pincode);
   const [phone, setPhone] = useState("");
   const key = product?.id;
+  useEffect(() => {
+    if (legacy && product?.seoPath) router.replace(product.seoPath);
+  }, [legacy, product?.seoPath, router]);
   useEffect(() => {
     if (!product) return;
     setSize(product.weights[0]); setFlavour(product.flavour || "");
@@ -97,7 +113,7 @@ export function Product() {
     finally { setBusy(false); }
   }
 
-  return <div className="wrap page" key={key}><div className="breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/shop">Cakes</Link><span>/</span>{product.name}</div><div className="detail-grid"><div className="detail-photo"><ProductGallery product={product}/></div><div className="detail-panel"><span className="overline">{product.badge}</span><h1>{product.name}</h1><div className="detail-price-line"><span className="detail-price">{money(selectedPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}</div>{saving > 0 && <p className="subtle discount-copy">10% off cakes 1 kg and above · Save {money(saving)} per cake.</p>}<p className="subtle">Starting from {sizeLabel(product)}</p><p className="detail-description">{product.description}</p><form onSubmit={submit}><div className="field-group"><span className="field-label">Choose {product.unit === "menu" ? "portion" : product.unit === "pieces" ? "box size" : "weight"}</span><div className="option-row">{product.weights.length > 16 ? <select aria-label="Choose cake weight" value={size} onChange={e=>setSize(Number(e.target.value))}>{product.weights.map(weight=><option value={weight} key={weight}>{sizeLabel(product, weight)} — {money(unitPrice({ productId: product.id, size: weight, eggless, addons: extras }, product))}</option>)}</select> : product.weights.map((weight) => <label key={weight} className="choice"><input type="radio" name="size" checked={Number(size) === weight} onChange={() => setSize(weight)}/><span>{sizeLabel(product, weight)}</span></label>)}</div>{product.eggless && <label className="check-label"><input type="checkbox" checked={eggless} onChange={(event) => setEggless(event.target.checked)}/><span className="check-label-copy">Make it eggless <span className="subtle">+{money(egglessSurcharge({ size: Number(size), eggless: true }, product))}{product.unit === "kg" ? " (₹50 per 500g)" : ""}</span></span></label>}{product.unit === "menu" && <p className="subtle">Small and Medium are menu size names, not verified kilogram weights. Please confirm eggless and decoration pricing separately.</p>}{product.leadDays > 0 && <p className="subtle">Please order at least {product.leadDays} day(s) before delivery for this cake.</p>}</div>
+  return <div className="wrap page" key={key}><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productGraph(product)) }}/><div className="breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/shop">Cakes</Link><span>/</span>{product.name}</div><div className="detail-grid"><div className="detail-photo"><ProductGallery product={product}/></div><div className="detail-panel"><span className="overline">{product.badge}</span><h1>{product.name}</h1><div className="detail-price-line"><span className="detail-price">{money(selectedPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}</div>{saving > 0 && <p className="subtle discount-copy">10% off cakes 1 kg and above · Save {money(saving)} per cake.</p>}<p className="subtle">Starting from {sizeLabel(product)}</p><p className="detail-description">{product.description}</p><form onSubmit={submit}><div className="field-group"><span className="field-label">Choose {product.unit === "menu" ? "portion" : product.unit === "pieces" ? "box size" : "weight"}</span><div className="option-row">{product.weights.length > 16 ? <select aria-label="Choose cake weight" value={size} onChange={e=>setSize(Number(e.target.value))}>{product.weights.map(weight=><option value={weight} key={weight}>{sizeLabel(product, weight)} — {money(unitPrice({ productId: product.id, size: weight, eggless, addons: extras }, product))}</option>)}</select> : product.weights.map((weight) => <label key={weight} className="choice"><input type="radio" name="size" checked={Number(size) === weight} onChange={() => setSize(weight)}/><span>{sizeLabel(product, weight)}</span></label>)}</div>{product.eggless && <label className="check-label"><input type="checkbox" checked={eggless} onChange={(event) => setEggless(event.target.checked)}/><span className="check-label-copy">Make it eggless <span className="subtle">+{money(egglessSurcharge({ size: Number(size), eggless: true }, product))}{product.unit === "kg" ? " (₹50 per 500g)" : ""}</span></span></label>}{product.unit === "menu" && <p className="subtle">Small and Medium are menu size names, not verified kilogram weights. Please confirm eggless and decoration pricing separately.</p>}{product.leadDays > 0 && <p className="subtle">Please order at least {product.leadDays} day(s) before delivery for this cake.</p>}</div>
       <div className="field-group"><label htmlFor="cake-flavour">Flavour</label><select id="cake-flavour" value={flavour} onChange={(event) => setFlavour(event.target.value)}>{[...new Set([product.flavour, ...(product.photo ? ["Chocolate", "Butterscotch"] : [])])].map((name) => <option key={name}>{name}</option>)}</select></div>
       <div className="field-group"><label htmlFor="cake-message">Message on cake (optional)</label><input id="cake-message" maxLength={30} placeholder="Happy Birthday, Anu!" value={message} onChange={(event) => setMessage(event.target.value)}/></div>
       {product.photo && <div className="field-group"><label htmlFor="photo-upload">Add your photograph (JPG or PNG, up to 10 MB)</label><input id="photo-upload" type="file" accept="image/jpeg,image/png" onChange={(event) => { const chosen = event.target.files?.[0]; if (chosen && chosen.size > 10 * 1024 * 1024) setFeedback("Choose a photo smaller than 10 MB."); else { setFile(chosen || null); setFeedback(""); } }} required/></div>}

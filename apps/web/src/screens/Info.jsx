@@ -27,17 +27,11 @@ function BusinessContact() {
   </section>;
 }
 
-export function Help() {
+export function Help({ children }) {
   return <div className="wrap page">
     <div className="page-heading"><h1>How can we help?</h1></div>
     <div className="help-layout">
-      <div>
-        <details className="faq"><summary>How do I personalise my cake?</summary><p>Select the size, flavour and message from a product page. Use <Link href="/custom">Custom cakes</Link> to submit a design request or image.</p></details>
-        <details className="faq"><summary>Can the sender and recipient be different people?</summary><p>Yes. We verify the sender's mobile number and ask for the recipient's contact and delivery address separately.</p></details>
-        <details className="faq"><summary>Where do you deliver?</summary><p>Enter your pincode on the website. Only approved delivery pincodes linked to active fulfillment branches are available at checkout.</p></details>
-        <details className="faq"><summary>How do I cancel or request a refund?</summary><p>Submit a cancellation request in <Link href="/orders">My Orders</Link>. Staff review the request; payment refunds are not automatic. For a damaged or incorrect cake, use the published customer support contact.</p></details>
-        <details className="faq"><summary>What if I have a food allergy?</summary><p>Contact support before ordering. Eggless does not necessarily mean dairy-free, nut-free or free of other allergens.</p></details>
-      </div>
+      <div>{children}</div>
       <aside className="help-note"><h2>We're here for your celebration.</h2><p>View your order, then quote the reference when contacting support.</p><Link href="/orders" className="button">My Orders</Link></aside>
     </div>
     <BusinessContact/>
