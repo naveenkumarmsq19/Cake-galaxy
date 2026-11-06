@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { approvedWeightsKg, discountAmount, regularUnitPrice, unitPrice } from "@cake-galaxy/catalog";
 import { categoryHref } from "../seo/urls.mjs";
+import { ButtonContent } from "./CakeLoader";
 
 const StoreContext = createContext(null);
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/$/, "");
@@ -123,7 +124,7 @@ export function StoreProvider({ children, initialCatalog }) {
           try { localStorage.setItem(basketKey, JSON.stringify(valid)); } catch {}
         }
       }
-    }).catch(() => { setCatalogLoaded(true); });
+    }).catch(() => {}).finally(() => setCatalogLoaded(true));
   }, []);
 
   function saveCart(next) {
@@ -182,16 +183,20 @@ export function Header() {
   const path = usePathname();
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [pin, setPin] = useState("");
+  const [checkingPin, setCheckingPin] = useState(false);
   const [feedback, setFeedback] = useState("");
   async function confirmPincode(event) {
     event.preventDefault();
+    if (checkingPin) return;
     setFeedback("");
     if (!/^[1-9]\d{5}$/.test(pin)) { setFeedback("Enter a valid 6-digit pincode."); return; }
+    setCheckingPin(true);
     try {
       const available = await checkDelivery(pin);
       if (available.available !== true) { setFeedback(available.available === false ? "Delivery isn't available to that pincode yet." : "Delivery could not be confirmed right now. Please try again."); return; }
       setDeliveryOpen(false);
     } catch (error) { setFeedback(error.message); }
+    finally { setCheckingPin(false); }
   }
 
   return <>
@@ -207,7 +212,7 @@ export function Header() {
       </div></nav>
     </header>
     <nav className="mobile-nav" aria-label="Mobile navigation">{[["/", "home", "Home"], ["/shop", "search", "Cakes"], ["/orders", "orders", "Orders"], ["/cart", "bag", "Bag"]].map(([href, icon, label]) => <Link key={label} href={href} className={path === href ? "active" : ""} aria-current={path === href ? "page" : undefined}><Icon name={icon}/>{label}</Link>)}</nav>
-    {deliveryOpen && <div className="modal-backdrop" onClick={() => setDeliveryOpen(false)}><div className="dialog dialog-open" role="dialog" aria-modal="true" aria-label="Check delivery" onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setDeliveryOpen(false)} aria-label="Close">×</button><h2>Where's the celebration?</h2><p>Enter your pincode to check delivery.</p><form onSubmit={confirmPincode}><label htmlFor="delivery-pin">Delivery pincode</label><input id="delivery-pin" value={pin} onChange={(event) => setPin(event.target.value)} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/><p className="form-message" role="status">{feedback}</p><button className="button full">Check availability</button></form></div></div>}
+    {deliveryOpen && <div className="modal-backdrop" onClick={() => setDeliveryOpen(false)}><div className="dialog dialog-open" role="dialog" aria-modal="true" aria-label="Check delivery" onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setDeliveryOpen(false)} aria-label="Close">×</button><h2>Where's the celebration?</h2><p>Enter your pincode to check delivery.</p><form onSubmit={confirmPincode}><label htmlFor="delivery-pin">Delivery pincode</label><input id="delivery-pin" disabled={checkingPin} value={pin} onChange={(event) => setPin(event.target.value)} inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required/><p className="form-message" role="status">{feedback}</p><button className="button full" disabled={checkingPin} aria-busy={checkingPin}><ButtonContent busy={checkingPin} pendingLabel="Checking delivery…">Check availability</ButtonContent></button></form></div></div>}
   </>;
 }
 

@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { addons, designCakeTier, discountAmount, egglessSurcharge, images, money, regularUnitPrice, sizeLabel, unitPrice } from "@cake-galaxy/catalog";
 import { Icon, useStore } from "../components/Storefront";
 import { ProductCard, SectionHeading } from "../components/Products";
 import PhoneVerification from "../components/PhoneVerification";
 import ProductGallery from "../components/ProductGallery";
 import { imageDelivery } from "../components/imageDelivery.mjs";
-import CakeLoader from "../components/CakeLoader";
+import CakeLoader, { ButtonContent } from "../components/CakeLoader";
+import LoadingSkeleton, { LoadingPage } from "../components/LoadingSkeleton";
+import LoadingImage from "../components/LoadingImage";
 import { categoryHref } from "../seo/urls.mjs";
 import { jsonLd, productGraph } from "../seo/site.mjs";
 
@@ -17,10 +19,10 @@ export function Home({ children }) {
   const { catalog, categories, catalogLoaded } = useStore();
   return <div className="wrap page home-page">
     <section className="hero" aria-labelledby="hero-title"><img className="hero-art" src={images.banner} alt="Ivory celebration cake with delicate sage details" fetchPriority="high"/><div className="hero-copy"><span className="overline">CAKE GALAXY · BENGALURU</span><h1 id="hero-title">Cake Galaxy<br/><em>made for your moments.</em></h1><p>Order birthday cakes, photo cakes and personalised celebration cakes in Bengaluru.</p><Link className="button" href="/shop">Shop cakes <Icon name="arrow"/></Link> <Link className="button outline" href="/menu">View full menu</Link></div></section>
-    <section className="section occasions"><SectionHeading title="Explore cake categories." />{!catalogLoaded && <CakeLoader size="medium" label="Loading cake categories…" />}<div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={categoryHref(category)} key={category.slug}><span className="category-image"><img {...imageDelivery(cover?.images?.[0] || cover?.image || category.image || images.celebration, "(max-width: 600px) 44vw, 180px", [160, 320, 480])} alt="" loading="lazy" decoding="async"/></span>{category.name}</Link>; })}</div></section>
-    <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more." />{!catalogLoaded && <CakeLoader size="medium" label="Loading favourite cakes…" />}<div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
+    <section className="section occasions"><SectionHeading title="Explore cake categories." />{!catalogLoaded && <LoadingSkeleton layout="categories" count={6} label="Loading cake categories…" />}<div className="category-grid">{categories.map(category => { const cover = catalog.find(p => p.category?.includes(category.name)); return <Link className="category-tile" href={categoryHref(category)} key={category.slug}><span className="category-image"><LoadingImage {...imageDelivery(cover?.images?.[0] || cover?.image || category.image || images.celebration, "(max-width: 600px) 44vw, 180px", [160, 320, 480])} alt="" loading="lazy" decoding="async"/></span>{category.name}</Link>; })}</div></section>
+    <section className="section"><SectionHeading title="Find your favourite." description="Chocolate classics, floral finishes and more." />{!catalogLoaded && <LoadingSkeleton label="Loading favourite cakes…" />}<div className="products">{catalog.slice(0, 4).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     <section className="section custom-banner"><div className="custom-banner-copy"><span className="overline">MADE JUST FOR YOU</span><h2>Your idea.<br/><em>Our finishing touch.</em></h2><p>Share a design you love. We’ll make it your own.</p><Link href="/custom" className="button outline">Create your cake <Icon name="arrow"/></Link></div><img src={images.custom} alt="Two-tier celebration cake with seasonal berries" loading="lazy"/></section>
-    <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day." />{!catalogLoaded && <CakeLoader size="medium" label="Loading more cakes…" />}<div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
+    <section className="section"><SectionHeading title="More to love." description="A few more ways to make their day." />{!catalogLoaded && <LoadingSkeleton label="Loading more cakes…" />}<div className="products">{catalog.slice(4, 8).map((item) => <ProductCard key={item.id} product={item}/>)}</div></section>
     {children}
   </div>;
 }
@@ -38,16 +40,17 @@ export function DefaultShop() { return <ShopView/>; }
 
 function ShopView({ category = "All", query = "", sort = "recommended" }) {
   const router = useRouter();
+  const [navigating, startTransition] = useTransition();
   const { catalog, categories, catalogLoaded } = useStore();
   const options = ["All", ...categories.map(item => item.name)];
   const matches = catalog.filter((product) => (category === "All" || (product.category || []).includes(category)) && (product.name + " " + product.flavour + " " + (product.category || []).join(" ")).toLowerCase().includes(query.toLowerCase()));
   const startingPrice = (p) => unitPrice({ productId: p.id, size: p.weights[0], eggless: false, addons: [] }, p);
   if (sort === "low") matches.sort((a, b) => startingPrice(a) - startingPrice(b));
   if (sort === "high") matches.sort((a, b) => startingPrice(b) - startingPrice(a));
-  function navigate(next) { const search = new URLSearchParams({ category, q: query, sort, ...next }); router.push("/shop?" + search); }
-  if (!catalogLoaded) return <CakeLoader fullScreen size="large" label="Loading Cake Galaxy cakes…" />;
+  function navigate(next) { const search = new URLSearchParams({ category, q: query, sort, ...next }); startTransition(() => router.push("/shop?" + search)); }
+  if (!catalogLoaded) return <LoadingPage title="Find your favourite cake" count={8} label="Loading Cake Galaxy cakes…" />;
   return <div className="wrap page"><div className="breadcrumb"><Link href="/">Home</Link><span>/</span>Cakes</div><div className="page-heading"><div><h1>{query ? "Results for “" + query + "”" : category === "All" ? "Find your favourite cake" : category + " cakes"}</h1><p>A little personal touch makes all the difference.</p></div></div>
-    <div className="catalog-toolbar"><span>{matches.length} cakes to explore</span><select className="mobile-filter" aria-label="Filter cakes" value={category} onChange={(event) => navigate({ category: event.target.value })}>{options.map((name) => <option key={name} value={name}>{name === "All" ? "All cakes" : name}</option>)}</select><select aria-label="Sort cakes" value={sort} onChange={(event) => navigate({ sort: event.target.value })}><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div>
+    {navigating && <CakeLoader variant="progress" size="small" label="Updating cake results…" />}<div className="catalog-toolbar" aria-busy={navigating}><span>{matches.length} cakes to explore</span><select className="mobile-filter" aria-label="Filter cakes" disabled={navigating} value={category} onChange={(event) => navigate({ category: event.target.value })}>{options.map((name) => <option key={name} value={name}>{name === "All" ? "All cakes" : name}</option>)}</select><select aria-label="Sort cakes" disabled={navigating} value={sort} onChange={(event) => navigate({ sort: event.target.value })}><option value="recommended">Recommended</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></div>
     <div className="catalog"><aside className="filters"><div className="filter-group"><h2>Shop by category</h2>{options.map((name) => <Link key={name} href={"/shop?category=" + encodeURIComponent(name)} className={name === category ? "active" : ""}>{name === "All" ? "All cakes" : name}</Link>)}</div><Link href="/shop" className="text-link">Clear filters</Link></aside><div className="products">{matches.length ? matches.map((item) => <ProductCard key={item.id} product={item}/>) : <div className="empty-state"><h2>No cakes found</h2><p>Try another flavour or clear the selected filters.</p><Link className="button" href="/shop">View all cakes</Link></div>}</div></div>
   </div>;
 }
@@ -70,6 +73,7 @@ export function Product({ productId, legacy = false }) {
   const [file, setFile] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploadStage, setUploadStage] = useState("");
   const [deliveryPin, setDeliveryPin] = useState(pincode);
   const [phone, setPhone] = useState("");
   const key = product?.id;
@@ -81,7 +85,7 @@ export function Product({ productId, legacy = false }) {
     setSize(product.weights[0]); setFlavour(product.flavour || "");
     setEggless(false); setExtras([]); setMessage(""); setFile(null);
   }, [key]);
-  if (!catalogLoaded) return <CakeLoader fullScreen size="large" label="Preparing your cake…" />;
+  if (!catalogLoaded) return <LoadingPage title="Your cake" layout="detail" label="Preparing your cake…" />;
   if (!product) return <div className="wrap page empty-state">That cake wasn't found. <Link href="/shop">Explore cakes</Link></div>;
   const related = catalog.filter(item => item.id !== product.id).map(item => ({
     item, score: (item.category || []).filter(value => (product.category || []).includes(value)).length * 10 +
@@ -94,6 +98,7 @@ export function Product({ productId, legacy = false }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (busy) return;
     setFeedback("");
     setBusy(true);
     try {
@@ -104,13 +109,15 @@ export function Product({ productId, legacy = false }) {
         if (!session.authenticated) throw new Error("Verify your mobile number below before adding a photo cake.");
         if (!file) throw new Error("Choose your photograph before adding this cake.");
         const formData = new FormData(); formData.append("reference", file);
+        setUploadStage("Uploading your photograph…");
         const uploaded = await api("/uploads", { method: "POST", formData });
+        setUploadStage("");
         uploadId = uploaded.id;
       }
       addItem({ productId: product.id, quantity, size: Number(size), flavour, eggless, message: message.trim(), addons: extras, uploadId });
       router.push("/cart");
     } catch (error) { setFeedback(error.message); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setUploadStage(""); }
   }
 
   return <div className="wrap page" key={key}><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productGraph(product)) }}/><div className="breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/shop">Cakes</Link><span>/</span>{product.name}</div><div className="detail-grid"><div className="detail-photo"><ProductGallery product={product}/></div><div className="detail-panel"><span className="overline">{product.badge}</span><h1>{product.name}</h1><div className="detail-price-line"><span className="detail-price">{money(selectedPrice)}</span>{saving > 0 && <del className="price-original">{money(originalPrice)}</del>}</div>{saving > 0 && <p className="subtle discount-copy">10% off cakes 1 kg and above · Save {money(saving)} per cake.</p>}<p className="subtle">Starting from {sizeLabel(product)}</p><p className="detail-description">{product.description}</p><form onSubmit={submit}><div className="field-group"><span className="field-label">Choose {product.unit === "menu" ? "portion" : product.unit === "pieces" ? "box size" : "weight"}</span><div className="option-row">{product.weights.length > 16 ? <select aria-label="Choose cake weight" value={size} onChange={e=>setSize(Number(e.target.value))}>{product.weights.map(weight=><option value={weight} key={weight}>{sizeLabel(product, weight)} — {money(unitPrice({ productId: product.id, size: weight, eggless, addons: extras }, product))}</option>)}</select> : product.weights.map((weight) => <label key={weight} className="choice"><input type="radio" name="size" checked={Number(size) === weight} onChange={() => setSize(weight)}/><span>{sizeLabel(product, weight)}</span></label>)}</div>{product.eggless && <label className="check-label"><input type="checkbox" checked={eggless} onChange={(event) => setEggless(event.target.checked)}/><span className="check-label-copy">Make it eggless <span className="subtle">+{money(egglessSurcharge({ size: Number(size), eggless: true }, product))}{product.unit === "kg" ? " (₹50 per 500g)" : ""}</span></span></label>}{product.unit === "menu" && <p className="subtle">Small and Medium are menu size names, not verified kilogram weights. Please confirm eggless and decoration pricing separately.</p>}{product.leadDays > 0 && <p className="subtle">Please order at least {product.leadDays} day(s) before delivery for this cake.</p>}</div>
@@ -120,7 +127,7 @@ export function Product({ productId, legacy = false }) {
       {product.photo && !session.authenticated && <div className="field-group"><PhoneVerification phone={phone} onPhoneChange={setPhone}/></div>}
       <div className="field-group"><span className="field-label">Make it a little more special</span>{addons.map((addon) => <label key={addon.id} className="check-label"><input type="checkbox" checked={extras.includes(addon.id)} onChange={(event) => setExtras((items) => event.target.checked ? [...items, addon.id] : items.filter((id) => id !== addon.id))}/><span className="check-label-copy">{addon.name} <span className="subtle">+{money(addon.price)}</span></span></label>)}</div>
       <div className="field-group"><label htmlFor="product-pincode">Delivery pincode</label><input id="product-pincode" name="productPincode" inputMode="numeric" autoComplete="postal-code" pattern="[1-9][0-9]{5}" maxLength={6} value={deliveryPin} onChange={(event) => { setDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6)); setFeedback(""); }} placeholder="Enter 6-digit pincode" required/><p className="subtle">{/^[1-9][0-9]{5}$/.test(deliveryPin) ? "Delivery availability and charges are confirmed before payment." : "Enter a 6-digit pincode to continue."}</p></div>
-      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}>{busy ? "Checking delivery…" : "Continue to bag"} <Icon name="arrow"/></button></div>{busy && <CakeLoader size="small" label="Checking delivery and preparing your bag…" />}<p className="form-message" role="status">{feedback}</p>
+      <div className="purchase-bar"><div className="quantity"><button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button><output>{quantity}</output><button type="button" onClick={() => setQuantity(Math.min(20, quantity + 1))} aria-label="Increase quantity">+</button></div><button className="button" aria-busy={busy} disabled={busy || !/^[1-9][0-9]{5}$/.test(deliveryPin)}><ButtonContent busy={busy} pendingLabel={uploadStage || "Checking delivery…"}>Continue to bag</ButtonContent>{!busy && <Icon name="arrow"/>}</button></div>{uploadStage && <CakeLoader variant="progress" size="small" label={uploadStage} />}<p className="form-message" role="status">{feedback}</p>
     </form></div></div>
     {related.length > 0 && <section className="section related-section" aria-labelledby="related-title">
       <div className="section-heading"><div><h2 id="related-title">You may also like</h2><p>More cakes to make your celebration special.</p></div></div>
@@ -143,6 +150,7 @@ export function Custom() {
   const [file, setFile] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploadStage, setUploadStage] = useState("");
   const [customPhone, setCustomPhone] = useState("");
 
   useEffect(() => {
@@ -174,6 +182,7 @@ export function Custom() {
 
   async function submit(event) {
     event.preventDefault();
+    if (busy) return;
     setFeedback("");
     if (!selected || !weights.includes(weightKg)) {
       setFeedback("Choose a flavour and available cake weight first.");
@@ -193,7 +202,9 @@ export function Custom() {
     try {
       const formData = new FormData();
       formData.append("reference", file);
+      setUploadStage("Uploading your design image…");
       const uploaded = await api("/uploads", { method: "POST", formData });
+      setUploadStage("Submitting your design…");
       const result = await api("/custom-requests", {
         method: "POST",
         body: { ...data, productId: selected.id, weightKg, customPhone, uploadId: uploaded.id }
@@ -208,6 +219,7 @@ export function Custom() {
       setFeedback(error.message);
     } finally {
       setBusy(false);
+      setUploadStage("");
     }
   }
 
@@ -236,7 +248,7 @@ export function Custom() {
             {available.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}
           </select>
           {catalogLoaded && !available.length && <p className="subtle">No {tier} flavours in the currently approved price list. Select another category or add approved flavours in Admin.</p>}
-          {!catalogLoaded && <CakeLoader size="medium" label="Loading available flavours…" />}
+          {!catalogLoaded && <LoadingSkeleton layout="rows" count={1} label="Loading available flavours…" />}
         </div>
         {selected && <>
           <div className="field">
@@ -272,7 +284,7 @@ export function Custom() {
           <div className="field"><h3>Your contact number</h3>
             {session.authenticated && session.phone === customPhone ? <p className="verified-badge">+91 {session.phone} · Verified</p> : <PhoneVerification phone={customPhone} onPhoneChange={setCustomPhone}/>}
           </div>
-          <button className="button full" disabled={busy}>{busy ? "Submitting…" : "Request a design & quote"}</button>{busy && <CakeLoader size="small" label="Submitting your design…" />}
+          <button className="button full" aria-busy={busy} disabled={busy}><ButtonContent busy={busy} pendingLabel="Sending your design…">Request a design & quote</ButtonContent></button>{busy && <CakeLoader variant="progress" size="small" label={uploadStage || "Submitting your design…"} />}
           <p className="subtle">We confirm the design and final price before payment. Submitting this form does not place a paid order.</p>
         </>}
         <p className="form-message" role="status">{feedback}</p>

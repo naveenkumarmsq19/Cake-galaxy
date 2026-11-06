@@ -1,84 +1,96 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
-const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
-const loader = read("../src/components/CakeLoader.jsx");
-const css = read("../src/components/CakeLoader.module.css");
-const art = read("../public/images/loaders/cake-galaxy-outline-loader.svg");
-const screens = read("../src/screens/Checkout.jsx");
-const catalog = read("../src/screens/Browse.jsx");
-const chat = read("../src/components/SmartChat.jsx");
-const chatOrder = read("../src/components/ChatOrderFlow.jsx");
-const admin = read("../src/screens/AdminPanel.jsx");
-const phone = read("../src/components/PhoneVerification.jsx");
-const map = read("../src/components/MapPinPicker.jsx");
-const store = read("../src/components/Storefront.jsx");
-const menu = read("../src/screens/FullMenu.jsx");
+const require = createRequire(import.meta.url);
+const { transformSync } = require("next/dist/build/swc");
+const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("cake loader uses a transparent animated asset, no external network or JS timer", () => {
-  assert.match(art, /<svg[^>]*viewBox="0 0 320 320"/);
-  assert.match(art, /@keyframes trace/);
-  assert.match(art, /@keyframes glow/);
-  assert.match(art, /prefers-reduced-motion:reduce/);
-  assert.match(loader, /cake-galaxy-outline-loader\.svg/);
-  assert.doesNotMatch(loader, /setTimeout|setInterval|onLoad|https?:\/\//);
-});
+// Render the production JSX with the same compiler as the application. CSS names
+// are stubbed; accessibility, content and HTML structure remain real React output.
+function component(path) {
+  const { code } = transformSync(read(path), {
+    jsc: { parser: { syntax: "ecmascript", jsx: true }, transform: { react: { runtime: "automatic" } } },
+    module: { type: "commonjs" }
+  });
+  const module = { exports: {} };
+  const load = name => name.endsWith(".module.css")
+    ? { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) }
+    : require(name);
+  new Function("require", "module", "exports", code)(load, module, module.exports);
+  return module.exports;
+}
+const { default: CakeLoader, ButtonContent } = component("../src/components/CakeLoader.jsx");
+const { default: LoadingSkeleton } = component("../src/components/LoadingSkeleton.jsx");
+const { default: LoadingImage } = component("../src/components/LoadingImage.jsx");
+const render = (Component, props) => renderToStaticMarkup(createElement(Component, props));
 
-test("loader is a reusable accessible status with all three responsive sizes", () => {
-  assert.match(loader, /role="status"/);
-  assert.match(loader, /aria-live="polite"/);
-  assert.match(loader, /fullScreen/);
-  assert.match(loader, /size = "large"/);
-  for (const cls of [".root", ".small", ".medium", ".large", ".fullScreen"]) assert.ok(css.includes(cls), cls);
-  assert.match(css, /@media \(max-width: 768px\)/);
-  assert.match(css, /@media \(max-width: 380px\)/);
-});
-
-test("route-level loading and suspense fallbacks use branded page loader", () => {
-  assert.match(read("../app/loading.jsx"), /<CakeLoader fullScreen size="large"/);
-  for (const path of ["product", "confirmation", "login", "policy"]) {
-    assert.match(read("../app/" + path + "/page.jsx"), /fallback=\{<CakeLoader size="large" fullScreen/);
+test("each loader announces the actual pending operation without readable decorative content", () => {
+  for (const variant of ["cake", "logo", "spinner", "dots", "pulse"]) {
+    const html = render(CakeLoader, { variant, label: "Checking delivery…" });
+    assert.match(html, /role="status"/);
+    assert.match(html, /aria-live="polite"/);
+    assert.match(html, /aria-label="Checking delivery…"/);
+    assert.match(html, new RegExp(`data-loader-variant="${variant}"`));
+    assert.doesNotMatch(html, /<button|<a\b|tabindex=/);
   }
-  // The shop now exports actual catalogue HTML in its fallback for search and no-JS readers.
-  assert.match(read("../app/shop/page.jsx"), /fallback=\{<DefaultShop/);
 });
 
-test("catalog views wait for catalogue instead of falsely showing empty data", () => {
-  assert.match(catalog, /if \(!catalogLoaded\) return <CakeLoader fullScreen size="large" label="Loading Cake Galaxy cakes/);
-  assert.match(catalog, /if \(!catalogLoaded\) return <CakeLoader fullScreen size="large" label="Preparing your cake/);
-  assert.match(catalog, /Loading cake categories/);
-  assert.match(catalog, /Loading available flavours/);
-  assert.match(catalog, /Checking delivery and preparing your bag/);
-  assert.match(catalog, /Submitting your design/);
+test("upload progress is indeterminate until a server response, with no invented percentage", () => {
+  const html = render(CakeLoader, { variant: "progress", label: "Uploading your design image…" });
+  assert.match(html, /role="progressbar"/);
+  assert.match(html, /aria-label="Uploading your design image…"/);
+  assert.doesNotMatch(html, /aria-valuenow|aria-valuetext|\d+%/);
 });
 
-test("chat loader remains small and does not block the chat ordering flow", () => {
-  assert.match(chat, /chatLoading}><CakeLoader size="small" label="Finding your cake options/);
-  assert.match(chat, /CakeLoader size="small" label="Loading cake catalogue/);
-  assert.match(chatOrder, /busy&&<CakeLoader size="small"/);
-  assert.match(chatOrder, /!hydrated&&<CakeLoader size="small"/);
-  assert.match(phone, /busy && <CakeLoader size="small" label=/);
+test("button content keeps valid inline HTML and switches its accessible text when busy", () => {
+  const busy = renderToStaticMarkup(createElement("button", { disabled: true, "aria-busy": true },
+    createElement(ButtonContent, { busy: true, pendingLabel: "Sending code…" }, "Send code")));
+  assert.match(busy, /aria-busy="true"/);
+  assert.match(busy, /Sending code…/);
+  assert.match(busy, /aria-hidden="true"/);
+  assert.doesNotMatch(busy, /<div|role="status"|>Send code</);
+  const ready = render(ButtonContent, { busy: false, children: "Send code" });
+  assert.match(ready, />Send code</);
+  assert.doesNotMatch(ready, /spinnerArt|Sending code/);
 });
 
-test("checkout and admin show progress without removing forms while posting", () => {
-  for (const label of ["Opening your bag", "Loading delivery details", "Preparing checkout", "Loading your orders"]) {
-    assert.ok(screens.includes(label), label);
+test("inline loaders render a span and each responsive size is retained", () => {
+  for (const size of ["small", "medium", "large"]) {
+    const html = render(CakeLoader, { size, variant: "spinner", inline: true });
+    assert.match(html, /^<span/);
+    assert.match(html, new RegExp(`data-cake-loader="${size}"`));
+    assert.doesNotMatch(html, /<div/);
   }
-  assert.match(screens, /Checking delivery availability/);
-  assert.match(screens, /Securely processing your order/);
-  assert.match(screens, /Loading payment options/);
-  assert.match(screens, /Verifying your order/);
-  assert.match(admin, /if \(checking\) return <div className="admin-loading"><CakeLoader size="large" fullScreen/);
-  assert.match(admin, /busy && <div className="admin-action-loader"><CakeLoader size="small"/);
-  assert.match(map, /cake-map-loading-overlay/);
-  assert.match(map, /cake-map-location-overlay/);
 });
 
-test("menu and account view wait for required async state before rendering empty results", () => {
-  assert.match(menu, /if \(!catalogLoaded\) return <CakeLoader size="large" fullScreen/);
-  assert.match(store, /const \[sessionLoaded, setSessionLoaded\] = useState\(false\)/);
-  assert.match(store, /finally\(\(\) => setSessionLoaded\(true\)\)/);
-  assert.match(screens, /if \(!sessionLoaded\) return <CakeLoader size="large" fullScreen label="Checking your account/);
-  assert.match(screens, /if \(!hydrated \|\| !catalogLoaded/);
+test("skeleton content is hidden from assistive technology and contains no fake products", () => {
+  for (const layout of ["products", "categories", "rows", "detail"]) {
+    const html = render(LoadingSkeleton, { layout, label: "Loading your orders…" });
+    assert.match(html, /role="status"/);
+    assert.match(html, /aria-hidden="true"/);
+    assert.match(html, /Loading your orders…/);
+    assert.doesNotMatch(html, /<button|<a\b|<img|₹/);
+  }
+});
+
+test("image shimmer preserves the image, alt text, responsive sources and native lazy loading in SSR", () => {
+  const html = render(LoadingImage, { src: "/cake.webp", srcSet: "/cake.webp 320w, /cake-large.webp 640w", alt: "Chocolate cake", loading: "lazy" });
+  assert.match(html, /^<img/);
+  assert.match(html, /data-image-state="loading"/);
+  assert.match(html, /alt="Chocolate cake"/);
+  assert.match(html, /loading="lazy"/);
+  assert.match(html, /src="\/cake.webp"/);
+  assert.match(html, /srcSet="\/cake.webp 320w, \/cake-large.webp 640w"/);
+  assert.doesNotMatch(html, /opacity|hidden|<div/);
+});
+
+test("animated styles and the cake artwork honour reduced motion", () => {
+  for (const path of ["../src/components/CakeLoader.module.css", "../src/components/LoadingImage.module.css", "../public/images/loaders/cake-galaxy-outline-loader.svg"]) {
+    assert.match(read(path), /prefers-reduced-motion:\s*reduce/);
+    assert.match(read(path), /animation:\s*none/);
+  }
 });

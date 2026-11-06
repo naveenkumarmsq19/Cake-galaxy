@@ -8,7 +8,7 @@ import { useStore } from "./Storefront";
 import { addCalendarDays, availableDeliverySlots, firstAvailableDate, indiaNow, isBookableDate } from "./deliverySchedule";
 import { calculateChatTotal, makeChatOrderPayload, makeConfirmedChatReceipt, methodsAvailable, phoneValid, pinValid, validateChatCart, validateChatDetails } from "./chatCheckout.mjs";
 import styles from "./ChatOrderFlow.module.css";
-import CakeLoader from "./CakeLoader";
+import CakeLoader, { ButtonContent } from "./CakeLoader";
 import { checkoutPaymentDescriptions, checkoutSubmitState } from "./chatCheckoutUi.mjs";
 
 const initialAddress={name:"",phone:"",line1:"",line2:"",city:"Bengaluru",whatsapp:false};
@@ -190,7 +190,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
  return <div className={styles.root} ref={flowRef} role="region" aria-label="Order through chat">
    <div className={styles.top}><strong>Order through Chat</strong><button type="button" onClick={onClose} disabled={busy} aria-label="Return to chat">×</button></div>
    <div className={styles.progress}>Step {stepNumber} of 5 — {step==="complete"?"Order result":step==="verify"?"Phone verification":step==="review"?"Order review":step==="pincode"?"Delivery area":step==="delivery"?"Date and time":"Recipient details"}</div>
-   {!hydrated&&<CakeLoader size="small" label="Preparing your bag…" />}
+   {!hydrated&&<CakeLoader variant="dots" size="small" label="Preparing your bag…" />}
    {hydrated&&step!=="complete"&&<div className={styles.summary}><strong>Your bag</strong>{cart.length?cart.map(item=>{
      const product=catalog.find(p=>p.id===item.productId);
      return <span key={item.id}>{product?.name||"Cake"} · {item.size} {product?.unit==="kg"?"kg":product?.unit||""} × {item.quantity}</span>;
@@ -199,7 +199,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
      <p className={styles.bot}>Let’s arrange your cake delivery. First, what is your six-digit delivery pincode?</p>
      <form className={styles.form} onSubmit={verifyPincode}>
        <label>Delivery pincode<input type="text" inputMode="numeric" pattern="[1-9][0-9]{5}" maxLength={6} required value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,6))}/></label>
-       <button type="submit" disabled={busy||!cart.length}>Check availability</button>
+       <button type="submit" aria-busy={busy} disabled={busy||!cart.length}><ButtonContent busy={busy} pendingLabel="Checking delivery…">Check availability</ButtonContent></button>
      </form>
    </section>}
    {step==="delivery"&&<section>
@@ -210,7 +210,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
          <option value="">Select an available slot</option>
          {slots.map(slot=><option key={slot} value={slot}>{slot}</option>)}
        </select></label>
-       <button type="submit" disabled={busy||!delivery.date||!delivery.slot}>Continue to phone verification</button>
+       <button type="submit" aria-busy={busy} disabled={busy||!delivery.date||!delivery.slot}><ButtonContent busy={busy} pendingLabel="Checking delivery time…">Continue to phone verification</ButtonContent></button>
      </form>
    </section>}
    {step==="verify"&&<section>
@@ -229,7 +229,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
        <label>City<input name="city" maxLength={60} required defaultValue={recipient.city}/></label>
        <label className={styles.checkbox}><input type="checkbox" name="whatsapp" defaultChecked={recipient.whatsapp}/> Receive optional order updates on WhatsApp</label>
        <p className={styles.small}>Delivery pincode: {pin}. You can edit it by returning to the previous step.</p>
-       <button type="submit" disabled={busy}>Review your order</button>
+       <button type="submit" aria-busy={busy} disabled={busy}><ButtonContent busy={busy} pendingLabel="Preparing order review…">Review your order</ButtonContent></button>
      </form>
    </section>}
    {step==="review"&&<section>
@@ -284,7 +284,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
          </div>
        </div>
      </div>
-     <button className={styles.orderButton} type="button" aria-busy={busy} disabled={submitState.disabled} onClick={placeOrder}>{submitState.label}</button>
+     <button className={styles.orderButton} type="button" aria-busy={busy} disabled={submitState.disabled} onClick={placeOrder}><ButtonContent busy={busy} pendingLabel={submitState.label}>{submitState.label}</ButtonContent></button>
      <p className={styles.small}>Your order is submitted only after you confirm. Online payments use secure Razorpay checkout.</p>
    </section>}
    {step==="complete"&&<section>
@@ -299,7 +299,7 @@ export default function ChatOrderFlow({onClose,onOrderPlaced}){
      <button className={styles.secondaryButton} type="button" onClick={onClose}>Return to chat</button>
    </section>}
    {error&&<p className={styles.error} role="alert">{error}</p>}
-   {busy&&<CakeLoader size="small" label={step==="review"?"Processing your Cake Galaxy order…":"Checking with Cake Galaxy…"} />}
+   {busy&&step==="review"&&<CakeLoader size="small" label={step==="review"?"Processing your Cake Galaxy order…":"Checking with Cake Galaxy…"} />}
    {step!=="complete"&&step!=="pincode"&&<div className={styles.back}><button type="button" disabled={busy} onClick={()=>{
      setError("");attempt.current=null;setAccepted(false);
      setStep(step==="delivery"?"pincode":step==="verify"?"delivery":step==="address"?"verify":"address");

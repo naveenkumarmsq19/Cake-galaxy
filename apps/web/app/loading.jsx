@@ -1,5 +1,5 @@
 import CakeLoader from "../src/components/CakeLoader";
 
 export default function Loading() {
-  return <CakeLoader fullScreen size="large" label="Loading Cake Galaxy…" />;
+  return <CakeLoader variant="logo" fullScreen size="large" label="Loading Cake Galaxy…" />;
 }
