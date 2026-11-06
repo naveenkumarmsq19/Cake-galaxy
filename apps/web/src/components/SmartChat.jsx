@@ -136,7 +136,7 @@ export default function SmartChat(){
      <header className={styles.header}><div className={styles.brandCopy}><strong>Cake Galaxy Assistant</strong><small>Here to help with cakes & orders</small></div><button type="button" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></header>
      {ordering ? <ChatOrderFlow onClose={()=>setOrdering(false)} onOrderPlaced={orderPlaced}/> : <>
      <div ref={chatFeedRef} className={styles.feed} aria-live="polite" aria-relevant="additions">
-       {!catalogLoaded && <div className={styles.chatLoading}><CakeLoader size="small" label="Loading cake catalogue…" /></div>}
+       {!catalogLoaded && <div className={styles.chatLoading}><CakeLoader variant="dots" size="small" label="Loading cake catalogue…" /></div>}
        {messages.map((m,index)=><div className={m.who==="user"?styles.user:styles.bot} key={index}>
           <p>{m.text}</p>
           {m.receipt&&<OrderReceipt receipt={m.receipt}/>}
@@ -148,7 +148,7 @@ export default function SmartChat(){
           {m.orderChat&&<button type="button" disabled={working} className={styles.action} onClick={startChatOrder}>Order through Chat</button>}
           {m.link&&<Link className={styles.actionLink} href={m.link} onClick={()=>setOpen(false)}>{m.link==="/cart"?"Review bag":m.link==="/orders"?"My Orders":m.link==="/custom"?"Custom Cakes":m.link.startsWith("/product")?"View product":m.link==="/shop"?"Browse cakes":"Help & contact"}</Link>}
         </div>)}
-        {working&&<div className={styles.chatLoading}><CakeLoader size="small" label="Finding your cake options…" /></div>}
+        {working&&<div className={styles.chatLoading}><CakeLoader variant="dots" size="small" label="Finding your cake options…" /></div>}
      </div>
      <div className={styles.suggestions}>
        <button type="button" disabled={working} onClick={browseCakes}>Browse Cakes</button>

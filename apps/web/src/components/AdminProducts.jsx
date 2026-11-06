@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ButtonContent } from "./CakeLoader";
 
 const empty = { id: "", name: "", price: "", variantPrices: "", variantLabels: "", category: "", categoryMode: "auto", flavour: "", weights: "0.5,1,2,3,4,5", unit: "kg", description: "", badge: "", leadDays: "0", eggless: false, photo: false, active: false };
 const entries = (value) => Object.entries(value?.toJSON?.() || value || {});
@@ -49,12 +50,16 @@ async function toSmallWebp(file) {
 }
 const adminPreview = url => url.replace(/^\/api\/product-images\//,"/api/admin/product-images/");
 
-export default function AdminProducts({ products, categories, isSuperAdmin, busy, request, uploadImages, importGalleryBundle, execute }) {
+export default function AdminProducts({ products, categories, isSuperAdmin, busy, request, uploadImages, importGalleryBundle, execute, onUploadProgress }) {
   const [draft, setDraft] = useState(empty);
   const [editing, setEditing] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [uploadProgress, setUploadProgress] = useState("");
+  useEffect(() => {
+    onUploadProgress?.(uploadProgress);
+    return () => onUploadProgress?.("");
+  }, [uploadProgress, onUploadProgress]);
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [photoPreviews, setPhotoPreviews] = useState([]);
   const [photoError, setPhotoError] = useState("");
@@ -232,9 +237,9 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
         <label><input type="checkbox" checked={draft.photo} onChange={e=>change("photo",e.target.checked)}/> Customer photo upload</label>
       </div>
       {draft.unit==="menu" && <p className="admin-muted">Menu codes: 1=Pastry, 2=Small, 3=Medium. They are not kg weights. PDF extra charges are shown on the menu only; they are not automatically charged at checkout.</p>}
-      {uploadProgress && <p className="admin-photo-note" role="status">{uploadProgress}</p>}
-      <button type="submit" className="admin-primary" disabled={busy||Boolean(products.find(p=>p.id===editing)?.deletedAt)}>
-        {busy ? "Saving photos…" : editing ? "Save product & upload photos" : "Create product & upload photos"}
+
+      <button type="submit" className="admin-primary" aria-busy={busy} disabled={busy||Boolean(products.find(p=>p.id===editing)?.deletedAt)}>
+        <ButtonContent busy={busy} pendingLabel={uploadProgress || "Saving product…"}>{editing ? "Save product & upload photos" : "Create product & upload photos"}</ButtonContent>
       </button>
     </form>}
     {isSuperAdmin && <div className="admin-card admin-gallery-wrap">
@@ -258,7 +263,7 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
             if(files.length)execute(()=>sendPhotos(files),"Photos compressed, uploaded and saved");
           }}/>
         </label>
-        {uploadProgress && <p role="status" className="admin-photo-note">{uploadProgress}</p>}
+
       </>}
       <div className="admin-gallery-wrap">
         <h3>Import all 12 prepared cake galleries in one step</h3>
@@ -267,8 +272,11 @@ export default function AdminProducts({ products, categories, isSuperAdmin, busy
           <input type="file" accept=".zip,application/zip" disabled={busy} onChange={e=>{
             const file=e.target.files?.[0];e.target.value="";
             if(file && window.confirm("Import all recognized cake galleries? Product enabled/disabled status will stay unchanged.")) execute(async()=>{
-              const result=await importGalleryBundle(file);
-              if(!result.imported?.length) throw new Error("No known cake images were imported.");
+              setUploadProgress("Uploading and importing gallery photos…");
+              try {
+                const result=await importGalleryBundle(file);
+                if(!result.imported?.length) throw new Error("No known cake images were imported.");
+              } finally { setUploadProgress(""); }
             },"Gallery ZIP imported; product statuses unchanged");
           }}/>
         </label>

@@ -124,13 +124,13 @@ export default function MapPinPicker({ value, onChange, onMapReady }) {
   return <section className="cake-map-picker" aria-label="Delivery map pin">
     <div className="cake-map-title">
       <div><h3>Pin your delivery location</h3><p>Tap the exact building on the map or drag the red marker. You can also use your current location.</p></div>
-      <button type="button" className="button outline" onClick={useMyLocation} disabled={locating || loading || !!error}>
+      <button type="button" className="button outline" onClick={useMyLocation} aria-busy={locating} disabled={locating || loading || !!error}>
         {locating ? "Finding location…" : "📍 Use my location"}
       </button>
     </div>
     <div className="cake-map-loading-wrap"><div className="cake-map-surface" ref={container} aria-label="Interactive delivery pin map" role="application"/>
-      {loading && <div className="cake-map-loading-overlay"><CakeLoader size="medium" label="Loading delivery map…" /></div>}
-      {locating && <div className="cake-map-location-overlay"><CakeLoader size="small" label="Finding your location…" /></div>}
+      {loading && <div className="cake-map-loading-overlay"><CakeLoader variant="spinner" size="medium" label="Loading delivery map…" /></div>}
+      {locating && <div className="cake-map-location-overlay"><CakeLoader variant="pulse" size="small" label="Finding your location…" /></div>}
     </div>
     {value ? <p className="cake-map-picked" role="status">📍 Pin selected: {Number(value.lat).toFixed(5)}, {Number(value.lng).toFixed(5)}. Double-check that this matches the written address and pincode.</p>
       : !loading && !error && <p className="subtle">No pin selected yet. Tap the map to mark the delivery point.</p>}

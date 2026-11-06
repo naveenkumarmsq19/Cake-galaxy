@@ -1,0 +1,4 @@
+.shimmer { background: linear-gradient(100deg, #e8ede5 25%, #f7f9f4 45%, #e8ede5 65%); background-size: 250% 100%; animation: shimmer 1.5s linear infinite; }
+.failed { background: #f0f3ed; object-fit: contain !important; padding: 16px; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none; background: #e8ede5; } }

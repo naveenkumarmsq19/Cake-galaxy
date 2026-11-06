@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useStore } from "./Storefront";
 import { ProductCard } from "./Products";
-import CakeLoader from "./CakeLoader";
+import { LoadingPage } from "./LoadingSkeleton";
 import { collectionPath, siteUrl } from "../seo/urls.mjs";
 import { jsonLd } from "../seo/site.mjs";
 
 export default function CatalogCollection({ slug }) {
   const { catalog, categories, catalogLoaded } = useStore();
   const category = categories.find((item) => item.slug === slug);
-  if (!catalogLoaded) return <CakeLoader size="large" fullScreen label="Loading cake category…"/>;
+  if (!catalogLoaded) return <LoadingPage title="Cake collection" label="Loading cake category…" count={8}/>;
   const products = category ? catalog.filter((product) => product.category?.includes(category.name)) : [];
   if (!category || !products.length) return <div className="wrap page empty-state"><h1>This category is currently unavailable</h1><Link href="/shop/">Explore available cakes</Link></div>;
   const graph = { "@context": "https://schema.org", "@type": "CollectionPage", name: category.name + " in Bengaluru", url: siteUrl + collectionPath(slug),
